@@ -1,0 +1,14 @@
+*.png
+*.cpg
+*.dbf
+*.geojson
+*.kml
+*.prj
+*.shp
+*.shx
+*.xml
+*.zip
+venv/*
+.ipynb_checkpoints/*
+*.twb
+*.png
