@@ -1,5 +1,6 @@
 *.png
 *.cpg
+*.csv
 *.dbf
 *.geojson
 *.kml
