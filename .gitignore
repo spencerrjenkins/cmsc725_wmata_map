@@ -2,7 +2,6 @@
 *.cpg
 *.csv
 *.dbf
-*.geojson
 *.kml
 *.prj
 *.shp
@@ -11,5 +10,4 @@
 *.zip
 venv/*
 .ipynb_checkpoints/*
-*.twb
 *.png
