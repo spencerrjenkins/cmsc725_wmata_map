@@ -1,11 +1,75 @@
 import numpy as np
+import geopandas as gpd
+import pandas as pd
 from shapely.geometry import box
+import matplotlib.pyplot as plt
+from sklearn.neighbors import KernelDensity 
+import contextily as cx
+from pyproj import  Transformer, Geod
 
+from matplotlib.patches import Circle
 import community
 
 import networkx as nx
 import random
 import math
+
+def load_shapefile(filepath, crs="EPSG:4326"):
+    """Load a shapefile and convert to the specified CRS."""
+    try:
+        gdf = gpd.read_file(filepath)
+        return gdf.to_crs(crs)
+    except Exception as e:
+        print(f"Error loading {filepath}: {e}")
+        return None
+
+def get_county_codes(fips_path, states, county_names):
+    """Return FIPS codes for given states and county names."""
+    fips_df = pd.read_csv(fips_path)
+    fips_df = fips_df[fips_df["state"].isin(states)]
+    fips_df["code"] = fips_df["fips"].apply(lambda a: str(a)[-3:])
+    codes = fips_df[fips_df["name"].isin(county_names)]["code"]
+    return codes
+
+def compute_transit_potential(df):
+    """Compute transit potential score for each block."""
+    df["transit_potential"] = np.log(df['POP20'] / (df['ALAND20'] + df['AWATER20']) * 1000 + 1)
+    return df
+
+def save_geojson(df, path):
+    """Save GeoDataFrame to GeoJSON."""
+    df.to_file(path, driver="GeoJSON")
+
+def load_geojson(path):
+    """Load GeoJSON as GeoDataFrame."""
+    return gpd.read_file(path)
+
+def reset_and_concat(*dfs):
+    """Reset index and concatenate multiple GeoDataFrames."""
+    dfs = [df.reset_index(drop=True) for df in dfs]
+    return pd.concat(dfs, ignore_index=True)
+
+def plot_kde_heatmap(df_points, bandwidth=2000, grid_size=70, cmap='Reds'):
+    df_points_web = df_points.to_crs(epsg=3857)
+    coords_web = np.vstack([df_points_web.geometry.x, df_points_web.geometry.y]).T
+    kde = KernelDensity(bandwidth=bandwidth, kernel='gaussian')
+    kde.fit(coords_web)
+    minx, miny, maxx, maxy = df_points_web.total_bounds
+    x_grid = np.linspace(minx, maxx, grid_size)
+    y_grid = np.linspace(miny, maxy, grid_size)
+    xx, yy = np.meshgrid(x_grid, y_grid)
+    grid_coords = np.vstack([xx.ravel(), yy.ravel()]).T
+    log_dens = kde.score_samples(grid_coords)
+    density = np.exp(log_dens).reshape(xx.shape)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.imshow(np.flipud(density), extent=[minx, maxx, miny, maxy], cmap=cmap, alpha=0.6)
+    df_points_web.plot(ax=ax, color='blue', markersize=10, label='Data Points')
+    cx.add_basemap(ax, source=cx.providers.CartoDB.Positron)
+    plt.colorbar(ax.images[0], label='Density')
+    plt.title('Kernel Density Estimation (KDE) Heatmap')
+    plt.legend()
+    plt.show()
+    return kde
 
 def get_points(df, extremities, layers=8):
     ids = []
@@ -113,30 +177,20 @@ def remove_isolated_nodes(graph):
     graph.remove_nodes_from(isolated_nodes)
     
     return graph
-def haversine(coord1, coord2):
+def haversine(pt1, pt2):
     """
     Calculate the great-circle distance between two points
     on the Earth's surface given their latitude and longitude.
     Coordinates should be in (latitude, longitude) format.
     """
-    lat1, lon1 = coord1
-    lat2, lon2 = coord2
-    
-    # Radius of Earth in kilometers
-    R = 6371.0
-    
-    # Convert degrees to radians
-    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-    
-    # Differences in coordinates
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    
-    # Haversine calculation
-    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    distance = R * c
-    
+    transformer = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
+    lon1, lat1 = transformer.transform(*pt1)
+    lon2, lat2 = transformer.transform(*pt2)
+
+    # Geodesic distance using WGS84 ellipsoid
+    geod = Geod(ellps="WGS84")
+    _, _, distance = geod.inv(lon1, lat1, lon2, lat2)
+
     return distance
 
 def assign_edge_weights(graph, positions):
@@ -156,33 +210,63 @@ def assign_edge_weights(graph, positions):
             graph[u][v]['weight'] = distance
 
     return graph
-def perform_walks(graph, pos, num_walks=5, max_distance=200000):
-    traversed_edges = set()
-    intersections = {}
 
+def angle_between(v1, v2):
+    """Calculate the angle in degrees between two vectors."""
+    dot = v1[0]*v2[0] + v1[1]*v2[1]
+    norm1 = math.hypot(*v1)
+    norm2 = math.hypot(*v2)
+    if norm1 == 0 or norm2 == 0:
+        return 0
+    cos_theta = dot / (norm1 * norm2)
+    cos_theta = max(min(cos_theta, 1), -1)  # Clamp for numerical stability
+    return math.degrees(math.acos(cos_theta))
+
+def perform_walks(graph, pos, num_walks=5, min_distance=0, max_distance=200000, traversed_edges=set(), complete_traversed_edges=[]):
     def get_straightest_edge(node, prev_node, visited):
-        neighbors = [n for n in graph.neighbors(node) if (node, n) not in traversed_edges and (n, node) not in traversed_edges and n not in visited]
+        neighbors = [n for n in graph.neighbors(node)
+                     if (node, n) not in traversed_edges and n not in visited]
         if not neighbors:
             return None
 
         if prev_node is None:
             return random.choice(neighbors)
 
-        v1 = (pos[node][0] - pos[prev_node][0], pos[node][1] - pos[prev_node][1])
+        v1 = (pos[prev_node][0] - pos[node][0], pos[prev_node][1] - pos[node][1])
 
-        def angle_to_prev(n):
+        # Compute angles and filter for those > 90 degrees
+        candidates = []
+        for n in neighbors:
+            edge = (node, n)
             v2 = (pos[n][0] - pos[node][0], pos[n][1] - pos[node][1])
-            return abs(angle_between(v1, v2))
+            #plt.scatter(pos[prev_node][0], pos[prev_node][1])
+            #plt.scatter(pos[node][0], pos[node][1], c='black')
+            #plt.scatter(pos[n][0], pos[n][1])
+            #plt.show()
+            #plt.clf()
+            angle = angle_between(v1, v2)
+            #print(angle)
+            if angle > 100:
+                candidates.append((n, angle))
 
-        return min(neighbors, key=angle_to_prev)
+        if not candidates:
+            return None
+
+        # Choose the neighbor with the smallest angle > 90 degrees (straightest)
+        return max(candidates, key=lambda x: x[1])[0]
 
     walks = []
 
-    for _ in range(num_walks):
+    i = 0
+    timeout = 100
+    while i < num_walks and timeout > 0:
+        if len(complete_traversed_edges) < i + 1:
+            complete_traversed_edges.append(set())
         start_node = random.choice(list(graph.nodes()))
         walk = [start_node]
         prev_node = None
         current_distance = 0
+        curr_traversed_edges = set()
 
         while current_distance < max_distance:
             next_node = get_straightest_edge(walk[-1], prev_node, set(walk))
@@ -191,29 +275,103 @@ def perform_walks(graph, pos, num_walks=5, max_distance=200000):
                 break
 
             edge = (walk[-1], next_node)
-
-            # Check for intersection
-            if edge in traversed_edges or (edge[1], edge[0]) in traversed_edges:
-                if intersections.get(edge, 0) >= 1:
-                    break
-                intersections[edge] = intersections.get(edge, 0) + 1
-
-            traversed_edges.add(edge)
+            curr_traversed_edges.add(edge)
+            curr_traversed_edges.add((edge[1],edge[0]))
+            #complete_traversed_edges[i].add(edge)
+            #complete_traversed_edges[i].add((edge[1],edge[0]))
             walk.append(next_node)
             prev_node = walk[-2]
 
             current_distance += graph[walk[-2]][walk[-1]]['weight']
 
-        walks.append(walk)
+        if current_distance > min_distance:
+            walks.append(walk)
+            traversed_edges = set.union(traversed_edges, curr_traversed_edges)
+            complete_traversed_edges[i] = curr_traversed_edges
+            i+=1
+        else:
+            timeout -= 1
 
-    return walks
-def plot_walks(graph, pos, walks, ax):
+    return walks, traversed_edges, complete_traversed_edges
 
+def score_node(node, positions, kde, radius=2000):
+    node_pos = np.array(positions[node]).reshape(1, -1)
+    # Sample points in a circle around the node
+    angles = np.linspace(0, 2 * np.pi, 16, endpoint=False)
+    circle_points = node_pos + radius * np.c_[np.cos(angles), np.sin(angles)]
+    points = np.vstack([node_pos, circle_points])
+    log_dens = kde.score_samples(points)
+    return np.mean(np.exp(log_dens)) * 1e10
+
+def score_walk_by_kde(walk, positions, kde, radius=2000):
+    """
+    Scores a walk by summing the KDE density within a given radius of each node in the walk.
+
+    Parameters:
+        walk (list): List of node IDs in the walk.
+        positions (dict): Mapping from node ID to (x, y) coordinates (in same CRS as KDE).
+        kde (KernelDensity): Fitted sklearn KernelDensity object.
+        radius (float): Radius (in same units as positions) to consider around each node.
+
+    Returns:
+        float: Total KDE score for the walk.
+    """
+
+    score = 0.0
+    for node in walk:
+        score += score_node(node, positions, kde, radius)
+    return score
+def plot_walks(graph, pos, walks, ax, kde, bounds, radius=None):
     # Draw the walks
     def random_hex_color():
         return "#" + ''.join(random.choices('0123456789ABCDEF', k=6))
 
-    for i, walk in enumerate(walks):
+
+    for walk in walks:
         walk_edges = [(walk[j], walk[j + 1]) for j in range(len(walk) - 1)]
         nx.draw_networkx_edges(graph, pos, edgelist=walk_edges, edge_color=random_hex_color(), width=2, ax=ax)
+        if radius is not None and type(radius) in [int,float]:
+            for node in walk:
+                x, y = pos[node]
+                # Draw a circle in map units (EPSG:3857 is meters)
+                circle = Circle((x, y), radius=radius, edgecolor='orange', facecolor='none', linewidth=1.5, alpha=0.5)
+                ax.add_patch(circle)
+                if x > bounds[0] and x < bounds[2] and y > bounds[1] and y < bounds[3]:
+                    ax.text(x, y, str(round(score_node(node, pos, kde, radius),2)), color='black', fontsize=8, ha='center', va='center', zorder=10)
     return ax
+
+def replace_lowest_scoring_walk(walks, positions, kde, graph, traversed_edges, complete_traversed_edges, min_distance=0, max_distance=200000, radius=2000):
+    """
+    Removes the walk with the lowest KDE score from the list and adds a new walk using perform_walks.
+
+    Parameters:
+        walks (list of list): List of walks (each walk is a list of node IDs).
+        positions (dict): Mapping from node ID to (x, y) coordinates.
+        kde (KernelDensity): Fitted sklearn KernelDensity object.
+        graph: networkx graph object.
+        pos: dict of node positions (same as positions).
+        min_distance (float): Minimum distance for new walk.
+        max_distance (float): Maximum distance for new walk.
+        radius (float): Radius for KDE scoring.
+
+    Returns:
+        list: Updated list of walks.
+    """
+    if not walks:
+        return walks, traversed_edges, complete_traversed_edges
+
+    # Score all walks
+    scores = [score_walk_by_kde(walk, positions, kde, radius) for walk in walks]
+    min_idx = int(np.argmin(scores))
+    
+    complete_traversed_edges = complete_traversed_edges[:min_idx] + complete_traversed_edges[min_idx+1:]
+    traversed_edges = set.union(*complete_traversed_edges)
+    # Remove the lowest scoring walk
+    walks = walks[:min_idx] + walks[min_idx+1:]
+
+    # Generate a new walk using your perform_walks implementation
+    new_walks, traversed_edges, complete_traversed_edges = perform_walks(graph, positions, num_walks=1, min_distance=min_distance, max_distance=max_distance, traversed_edges=traversed_edges, complete_traversed_edges=complete_traversed_edges)
+    if new_walks:
+        walks.append(new_walks[0])
+
+    return walks, traversed_edges, complete_traversed_edges

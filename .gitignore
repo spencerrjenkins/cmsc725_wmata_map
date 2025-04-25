@@ -16,3 +16,4 @@ __pycache__/api.cpython-311.pyc
 data/*
 *.pyc
 *.tar.gz
+.vscode/*
