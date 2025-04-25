@@ -1,0 +1,11 @@
+requests
+geopandas
+shapely
+numpy
+python-louvain
+networkx
+contextily
+libpysal
+seaborn
+scikit-learn
+scipy
