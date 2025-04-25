@@ -8,9 +8,11 @@
 *.shx
 *.xml
 *.zip
+*.geojson
 venv/*
 .ipynb_checkpoints/*
 *.png
 __pycache__/api.cpython-311.pyc
 data/*
 *.pyc
+*.tar.gz
