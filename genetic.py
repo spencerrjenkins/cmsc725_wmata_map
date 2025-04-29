@@ -102,7 +102,7 @@ def genetic_algorithm(
             children.extend([child1, child2])
         # Mutation
         population = [mutate(child, graph, mutation_rate) for child in children[:population_size]]
-        caller(gen, graph, positions, population, kde)
+        caller(gen, graph, positions, population[int(np.argmax(fitnesses))], kde)
     # Final selection
     fitnesses = [fitness(route_set, positions, kde, radius, node_types) for route_set in population]
     best_idx = int(np.argmax(fitnesses))
