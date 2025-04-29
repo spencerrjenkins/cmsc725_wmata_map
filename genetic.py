@@ -76,7 +76,7 @@ def mutate(route_set, graph, mutation_rate=0.1):
 def genetic_algorithm(
     graph, positions, kde, num_routes=3, population_size=20, generations=30,
     min_distance=20000, max_distance=40000, radius=2000, mutation_rate=0.1,
-    core_bounds=None, caller=lambda a: None
+    core_bounds=None, caller=lambda **a: None
 ):
     """
     GA for best set of routes, prioritizing suburb-urban-suburb patterns.
@@ -102,7 +102,7 @@ def genetic_algorithm(
             children.extend([child1, child2])
         # Mutation
         population = [mutate(child, graph, mutation_rate) for child in children[:population_size]]
-        caller(gen)
+        caller(gen, graph, positions, population, kde)
     # Final selection
     fitnesses = [fitness(route_set, positions, kde, radius, node_types) for route_set in population]
     best_idx = int(np.argmax(fitnesses))
