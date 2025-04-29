@@ -3,6 +3,7 @@ async function fetchGeoJSON(url) {
     const resp = await fetch(url);
     return await resp.json();
 }
+const currentLinesLayerNames = [];
 const catchmentCircles = [];
 // Color palette for lines
 const COLORS = [
@@ -51,6 +52,94 @@ fetchGeoJSON('../data/output/network.geojson').then(data => {
     addLayerToggle('Network', false);
     layerOrder.push('Network');
 });
+
+// Add support for toggling between lines_naive and lines_genetic
+let currentLinesSource = 'lines_naive'; // 'lines_naive', or 'lines_genetic'
+
+function loadLinesGeoJSON(source) {
+    // Remove existing line layers and markers
+    currentLinesLayerNames.forEach(name => {
+        if (layers[name]) map.removeLayer(layers[name]);
+        if (lineMarkers[name]) lineMarkers[name].forEach(m => map.removeLayer(m));
+        delete layers[name];
+        delete lineMarkers[name];
+    });
+    currentLinesLayerNames.length = 0;
+    // Load the selected lines file
+    fetchGeoJSON(`../data/output/${source}.geojson`).then(data => {
+        (data.features || []).forEach((feature, i) => {
+            const color = COLORS[i % COLORS.length];
+            const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
+            const numStations = feature.geometry.coordinates.length;
+            const name = `Line ${feature.properties.line_id ?? i}`;
+            lineMarkers[name] = [];
+            const lineLayer = L.geoJSON(feature, {
+                style: { color, weight: 4, opacity: 1 },
+                onEachFeature: (feat, layer) => {
+                    const totalDistance = (feat.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
+                    const numStations = feat.geometry.coordinates.length;
+                    layer.bindTooltip(
+                        `Line ${feat.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStations}`,
+                        {
+                            sticky: true,
+                            direction: 'top',
+                            offset: [0, -10]
+                        }
+                    );
+                }
+            });
+            layers[name] = lineLayer;
+            lineLayer.addTo(map);
+            lineMarkers[name] = [];
+            currentLinesLayerNames.push(name);
+            // Add vertex markers, popups, and circles
+            const coords = feature.geometry.coordinates;
+            const kdeValues = feature.properties.kde_values || [];
+            coords.forEach((coord, idx) => {
+                const key = roundCoord(coord).join(',');
+                const kde = vertexKDEMap[key];
+                const linesHere = vertexLineMap[key] || [];
+                const icon = L.icon({
+                    iconUrl: 'assets/wmata.svg',
+                    iconSize: [10, 10],
+                    iconAnchor: [7, 7],
+                    popupAnchor: [0, -7]
+                });
+                const marker = L.marker([coord[1], coord[0]], { icon }).addTo(map);
+                attachRouteFinderToMarker(marker, coord[1], coord[0]);
+                const popup = `<b>Vertex</b><br>KDE Score: ${kde?.toFixed(2) ?? 'N/A'}<br>Lines: ${linesHere.map(l => `Line ${l}`).join(', ')}`;
+                marker.bindPopup(popup);
+                lineMarkers[name].push(marker);
+            });
+        });
+        // After all lines are loaded, sort currentLinesLayerNames numerically
+        currentLinesLayerNames.sort((a, b) => {
+            const numA = parseInt(a.replace('Line ', ''));
+            const numB = parseInt(b.replace('Line ', ''));
+            return numA - numB;
+        });
+        // Remove all previous line toggles before rendering new ones
+        renderLayerToggles();
+    });
+}
+
+// Add UI for toggling between lines_naive and lines_genetic
+const linesSourceSelect = document.createElement('select');
+linesSourceSelect.id = 'lines-source-select';
+['lines_naive', 'lines_genetic'].forEach(src => {
+    const opt = document.createElement('option');
+    opt.value = src;
+    opt.textContent = src.replace('lines', 'Lines').replace('_', ' ').replace('naive', 'Naive').replace('genetic', 'Genetic');
+    linesSourceSelect.appendChild(opt);
+});
+linesSourceSelect.onchange = function () {
+    currentLinesSource = this.value;
+    loadLinesGeoJSON(currentLinesSource);
+};
+document.getElementById('controls').appendChild(linesSourceSelect);
+
+// On page load, load default lines
+loadLinesGeoJSON(currentLinesSource);
 
 // Load lines and add tooltips, vertex markers, and circles
 fetchGeoJSON('../data/output/lines.geojson').then(data => {
@@ -141,10 +230,10 @@ function addLayerToggle(name, checked) {
 
 function renderLayerToggles() {
     while (layerToggles.firstChild) layerToggles.removeChild(layerToggles.firstChild);
-    // Render all line toggles in order
-    lineLayerNames.forEach(n => createToggle(n, true));
+    // Render all line toggles in order (use currentLinesLayerNames for currently loaded network)
+    currentLinesLayerNames.forEach(n => createToggle(n, map.hasLayer(layers[n])));
     // Render network toggle if present
-    if (layers['Network']) createToggle('Network', false);
+    if (layers['Network']) createToggle('Network', map.hasLayer(layers['Network']));
     // Add catchment area toggle at the end
     layerToggles.appendChild(catchmentToggleLabel);
 }
@@ -235,7 +324,32 @@ fetchGeoJSON('../data/output/lines.geojson').then(data => {
     });
 });
 
+// Helper: get currently visible line IDs
+function getVisibleLineIds() {
+    return lineLayerNames.filter(name => {
+        const checkbox = document.getElementById(`layer-toggle-${name.replace(/\s/g, '-')}`);
+        return checkbox && checkbox.checked;
+    }).map(name => parseInt(name.replace('Line ', '')));
+}
+
 routeFinderBtn.onclick = () => {
+    if (routeFinderState === 'selectingStart' || routeFinderState === 'selectingEnd') {
+        // Clear/reset
+        routeFinderState = 'selectingStart';
+        routeStart = null;
+        routeEnd = null;
+        if (routeHighlightLayer) { map.removeLayer(routeHighlightLayer); routeHighlightLayer = null; }
+        routeNodeMarkers.forEach(m => map.removeLayer(m));
+        routeNodeMarkers = [];
+        routeFinderStatus.textContent = 'Click the starting station.';
+        routeFinderResult.textContent = '';
+        routeFinderBtn.textContent = 'clear';
+        // Remove Exit button if present
+        const exitBtn = document.getElementById('route-finder-exit-btn');
+        if (exitBtn) exitBtn.remove();
+        return;
+    }
+    // Start route finder
     routeFinderState = 'selectingStart';
     routeStart = null;
     routeEnd = null;
@@ -244,12 +358,20 @@ routeFinderBtn.onclick = () => {
     routeNodeMarkers = [];
     routeFinderStatus.textContent = 'Click the starting station.';
     routeFinderResult.textContent = '';
+    routeFinderBtn.textContent = 'clear';
+    // Remove Exit button if present
+    const exitBtn = document.getElementById('route-finder-exit-btn');
+    if (exitBtn) exitBtn.remove();
 };
 
-// Helper: find nearest node in lines graph
-function findNearestLineNode(lat, lng) {
+// Helper: find nearest node in lines graph, but only for visible lines
+function findNearestLineNodeVisible(lat, lng) {
+    const visibleLineIds = new Set(getVisibleLineIds());
     let minDist = Infinity, minKey = null;
     for (const [key, ll] of Object.entries(linesGraph.nodes || {})) {
+        // Only consider nodes on visible lines
+        const linesHere = nodeToLineIds[key] ? Array.from(nodeToLineIds[key]) : [];
+        if (!linesHere.some(lid => visibleLineIds.has(lid))) continue;
         const d = Math.abs(ll[0] - lat) + Math.abs(ll[1] - lng);
         if (d < minDist) { minDist = d; minKey = key; }
     }
@@ -260,23 +382,25 @@ function findNearestLineNode(lat, lng) {
 function attachRouteFinderToMarker(marker, lat, lng) {
     marker.on('click', (e) => {
         if (routeFinderState === 'selectingStart') {
-            routeStart = findNearestLineNode(lat, lng);
+            routeStart = findNearestLineNodeVisible(lat, lng);
             if (!routeStart) return;
             routeFinderState = 'selectingEnd';
             routeFinderStatus.textContent = 'Click the destination station.';
             // Highlight start marker
             const m = L.circleMarker([lat, lng], { radius: 12, color: 'green', fillOpacity: 0.7 }).addTo(map);
             routeNodeMarkers.push(m);
+            routeFinderBtn.textContent = 'clear';
         } else if (routeFinderState === 'selectingEnd') {
-            routeEnd = findNearestLineNode(lat, lng);
+            routeEnd = findNearestLineNodeVisible(lat, lng);
             if (!routeEnd || routeEnd === routeStart) return;
             routeFinderState = 'idle';
             // Highlight end marker
             const m = L.circleMarker([lat, lng], { radius: 12, color: 'red', fillOpacity: 0.7 }).addTo(map);
             routeNodeMarkers.push(m);
             routeFinderStatus.textContent = 'Finding route...';
-            // Find and show route
-            const path = dijkstraLines(linesGraph, routeStart, routeEnd);
+            // Only consider visible lines
+            const visibleLineIds = new Set(getVisibleLineIds());
+            const path = dijkstraLinesVisible(linesGraph, routeStart, routeEnd, visibleLineIds);
             if (path.length < 2) {
                 routeFinderStatus.textContent = 'No route found.';
                 return;
@@ -307,13 +431,44 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                 }
             }
             routeFinderStatus.textContent = 'Route found!';
-            routeFinderResult.innerHTML = `<b>Route:</b> ${lineSequence.map(l => `Line ${l}`).join(' → ')}<br><b>Stops:</b> ${path.length - 1}<br><b>Total distance:</b> ${(totalRouteDistance / 1000).toFixed(2)} km`;
+            // Calculate travel time: 60 km/h + 6 min per transfer
+            const speed_kmh = 60;
+            const totalDistanceKm = totalRouteDistance / 1000;
+            let transfers = 0;
+            for (let i = 1; i < lineSequence.length; ++i) {
+                if (lineSequence[i] !== lineSequence[i - 1]) transfers++;
+            }
+            const travelTimeHours = totalDistanceKm / speed_kmh;
+            const travelTimeMinutes = travelTimeHours * 60 + transfers * 6;
+            routeFinderResult.innerHTML = `<b>Route:</b> ${lineSequence.map(l => `Line ${l}`).join(' → ')}<br><b>Stops:</b> ${path.length - 1}<br><b>Total distance:</b> ${totalDistanceKm.toFixed(2)} km<br><b>Transfers:</b> ${transfers}<br><b>Estimated travel time:</b> ${travelTimeMinutes.toFixed(1)} min`;
+            // Add Exit Route Finder button
+            let exitBtn = document.getElementById('route-finder-exit-btn');
+            if (!exitBtn) {
+                exitBtn = document.createElement('button');
+                exitBtn.id = 'route-finder-exit-btn';
+                exitBtn.textContent = 'Exit Route Finder';
+                exitBtn.style.marginLeft = '10px';
+                routeFinderBtn.parentNode.insertBefore(exitBtn, routeFinderBtn.nextSibling);
+                exitBtn.onclick = () => {
+                    routeFinderState = 'idle';
+                    routeStart = null;
+                    routeEnd = null;
+                    if (routeHighlightLayer) { map.removeLayer(routeHighlightLayer); routeHighlightLayer = null; }
+                    routeNodeMarkers.forEach(m => map.removeLayer(m));
+                    routeNodeMarkers = [];
+                    routeFinderStatus.textContent = '';
+                    routeFinderResult.textContent = '';
+                    routeFinderBtn.textContent = 'Route Finder';
+                    exitBtn.remove();
+                };
+            }
+            routeFinderBtn.textContent = 'clear';
         }
     });
 }
 
-// Dijkstra's algorithm for shortest path on lines graph
-function dijkstraLines(graph, start, end) {
+// Dijkstra's algorithm for shortest path on lines graph, only using visible lines
+function dijkstraLinesVisible(graph, start, end, visibleLineIds) {
     const dist = {}, prev = {}, Q = new Set(Object.keys(graph.nodes));
     for (const v of Q) dist[v] = Infinity;
     dist[start] = 0;
@@ -323,6 +478,7 @@ function dijkstraLines(graph, start, end) {
         if (u === null || u === end) break;
         Q.delete(u);
         for (const e of (graph.edges[u] || [])) {
+            if (!visibleLineIds.has(e.lineId)) continue;
             const alt = dist[u] + e.dist;
             if (alt < dist[e.to]) {
                 dist[e.to] = alt;
