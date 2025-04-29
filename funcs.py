@@ -532,11 +532,14 @@ def save_graph_to_geojson(graph, positions, out_path):
     gdf.to_file(out_path, driver="GeoJSON")
 
 
-def save_lines_to_geojson(lines, graph, positions, kde, out_path):
+def save_lines_to_geojson(
+    lines, graph, positions, kde, out_path, node_station_status=None
+):
     """
     Save the transit lines to a GeoJSON file, including KDE value at each vertex.
     Each line is a LineString feature, with a list of KDE values as a property.
     Also saves the length of each segment in a 'segment_lengths' property.
+    Also saves a list of booleans 'is_station' for each node if node_station_status is provided.
     All coordinates are converted to EPSG:4326.
     """
     from shapely.geometry import LineString
@@ -564,20 +567,96 @@ def save_lines_to_geojson(lines, graph, positions, kde, out_path):
     for idx, line in enumerate(lines):
         coords = [to_latlon(positions[n]) for n in line if n in positions]
         kde_values = [get_kde_value(n) for n in line if n in positions]
-        # Calculate segment lengths in meters (using original CRS positions)
         segment_lengths = [
             segment_length(positions[line[i]], positions[line[i + 1]])
             for i in range(len(line) - 1)
             if line[i] in positions and line[i + 1] in positions
         ]
-        features.append(
-            {
-                "geometry": LineString(coords),
-                "type": "line",
-                "line_id": idx,
-                "kde_values": kde_values,
-                "segment_lengths": segment_lengths,
-            }
-        )
+        is_station = None
+        if node_station_status is not None:
+            is_station = [
+                bool(node_station_status.get(n, True)) for n in line if n in positions
+            ]
+        feature = {
+            "geometry": LineString(coords),
+            "type": "line",
+            "line_id": idx,
+            "kde_values": kde_values,
+            "segment_lengths": segment_lengths,
+        }
+        if is_station is not None:
+            feature["is_station"] = is_station
+        features.append(feature)
     gdf = gpd.GeoDataFrame(features)
     gdf.to_file(out_path, driver="GeoJSON")
+
+
+def load_lines_from_geojson(path):
+    """
+    Loads lines and positions from a GeoJSON file created by save_lines_to_geojson.
+    Returns:
+        lines: list of lists of node coordinates (as tuples)
+        positions: dict mapping node coordinate (tuple) to (x, y) coordinates
+    """
+    import geojson
+
+    with open(path, "r") as f:
+        gj = geojson.load(f)
+    lines = []
+    positions = {}
+    for feature in gj["features"]:
+        coords = feature["geometry"]["coordinates"]
+        line = []
+        for c in coords:
+            node = tuple(c)
+            line.append(node)
+            positions[node] = node  # Store as (lon, lat)
+        lines.append(line)
+    return lines, positions
+
+
+def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
+    """
+    Mark nodes as stations or non-stations based on:
+    - Terminal stations (endpoints of a line) are always stations.
+    - Transfer stations (nodes shared by two or more lines) are always stations.
+    - Any other node that is less than min_station_dist (meters) from its neighbors is marked as non-station.
+    Returns: dict {node: True/False}
+    """
+    from collections import defaultdict
+
+    station_nodes = set()
+    node_line_count = defaultdict(int)
+    # Count how many lines each node appears in
+    for walk in walks:
+        for node in walk:
+            node_line_count[node] += 1
+    # Mark terminals and transfers as stations
+    for walk in walks:
+        n = len(walk)
+        for i, node in enumerate(walk):
+            if i == 0 or i == n - 1:
+                station_nodes.add(node)
+            elif node_line_count[node] > 1:
+                station_nodes.add(node)
+    # Mark other nodes
+    node_station_status = {}
+    for walk in walks:
+        n = len(walk)
+        for i, node in enumerate(walk):
+            if node in station_nodes:
+                node_station_status[node] = True
+            else:
+                is_station = True
+                prev_node = walk[i - 1] if i > 0 else None
+                next_node = walk[i + 1] if i < n - 1 else None
+                if prev_node and graph.has_edge(node, prev_node):
+                    d_prev = graph[node][prev_node].get("weight", None)
+                    if d_prev is not None and d_prev < min_station_dist:
+                        is_station = False
+                if next_node and graph.has_edge(node, next_node):
+                    d_next = graph[node][next_node].get("weight", None)
+                    if d_next is not None and d_next < min_station_dist:
+                        is_station = False
+                node_station_status[node] = is_station
+    return node_station_status

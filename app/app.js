@@ -63,6 +63,7 @@ function loadLinesGeoJSON(source) {
         delete layers[name];
         delete lineMarkers[name];
         delete vertexLineMap[name];
+        delete linesHere[name];
         catchmentCircles.length = 0;
     });
     currentLinesLayerNames.length = 0;
@@ -171,6 +172,8 @@ function loadLinesGeoJSON(source) {
                 const key = roundCoord(coord).join(',');
                 const kde = vertexKDEMap[key];
                 const linesHere = vertexLineMap[key] || [];
+                const isStation = feature.properties.is_station ? feature.properties.is_station[idx] : true;
+                if (!isStation) return; // Only add marker if node is a station
                 const icon = L.icon({
                     iconUrl: 'assets/wmata.svg',
                     iconSize: [10, 10],
@@ -227,7 +230,8 @@ document.getElementById('controls').appendChild(linesSourceSelect);
 // On page load, load default lines
 loadLinesGeoJSON(currentLinesSource);
 
-
+// Store is_station info for each node globally
+const stationStatusByCoord = {};
 
 function renderLayerToggles() {
     while (layerToggles.firstChild) layerToggles.removeChild(layerToggles.firstChild);
@@ -345,6 +349,7 @@ routeFinderBtn.onclick = () => {
         routeFinderStatus.textContent = 'Click the starting station.';
         routeFinderResult.textContent = '';
         routeFinderBtn.textContent = 'clear';
+        routeFinderBtn.disabled = true; // Disable clear until origin is selected
         // Remove Exit button if present
         const exitBtn = document.getElementById('route-finder-exit-btn');
         if (exitBtn) exitBtn.remove();
@@ -360,6 +365,7 @@ routeFinderBtn.onclick = () => {
     routeFinderStatus.textContent = 'Click the starting station.';
     routeFinderResult.textContent = '';
     routeFinderBtn.textContent = 'clear';
+    routeFinderBtn.disabled = true; // Disable clear until origin is selected
     // Remove Exit button if present
     const exitBtn = document.getElementById('route-finder-exit-btn');
     if (exitBtn) exitBtn.remove();
@@ -391,6 +397,7 @@ function attachRouteFinderToMarker(marker, lat, lng) {
             const m = L.circleMarker([lat, lng], { radius: 12, color: 'green', fillOpacity: 0.7 }).addTo(map);
             routeNodeMarkers.push(m);
             routeFinderBtn.textContent = 'clear';
+            routeFinderBtn.disabled = false; // Enable clear after origin is selected
         } else if (routeFinderState === 'selectingEnd') {
             routeEnd = findNearestLineNodeVisible(lat, lng);
             if (!routeEnd || routeEnd === routeStart) return;
@@ -432,16 +439,34 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                 }
             }
             routeFinderStatus.textContent = 'Route found!';
-            // Calculate travel time: 60 km/h + 6 min per transfer
-            const speed_kmh = 60;
+            // Calculate travel time: 80 km/h + 0.4 min per station + 6 min per transfer
+            const speed_kmh = 80;
             const totalDistanceKm = totalRouteDistance / 1000;
             let transfers = 0;
             for (let i = 1; i < lineSequence.length; ++i) {
                 if (lineSequence[i] !== lineSequence[i - 1]) transfers++;
             }
             const travelTimeHours = totalDistanceKm / speed_kmh;
-            const travelTimeMinutes = travelTimeHours * 60 + transfers * 6;
-            routeFinderResult.innerHTML = `<b>Route:</b> ${lineSequence.map(l => `Line ${l}`).join(' → ')}<br><b>Stops:</b> ${path.length - 1}<br><b>Total distance:</b> ${totalDistanceKm.toFixed(2)} km<br><b>Transfers:</b> ${transfers}<br><b>Estimated travel time:</b> ${travelTimeMinutes.toFixed(1)} min`;
+            // Count number of stations in the path
+            let stationCount = 0;
+            for (let i = 0; i < path.length; ++i) {
+                const node = path[i];
+                const coord = linesGraph.nodes[node];
+                if (!coord) continue;
+                const key = coord.join(',');
+                console.log(stationStatusByCoord[key]);
+                if (stationStatusByCoord[key] === undefined || stationStatusByCoord[key]) stationCount++;
+            }
+            // For travel time, replace (path.length - 2) * 0.4 with (stationCount - 2) * 0.4
+            let travelTimeMinutes = travelTimeHours * 60 + Math.max(0, stationCount - 2) * 0.4 + transfers * 6;
+            travelTimeMinutes = Math.ceil(travelTimeMinutes); // round up to next whole minute
+            let travelTimeStr = `${travelTimeMinutes} min`;
+            if (travelTimeMinutes >= 60) {
+                const hours = Math.floor(travelTimeMinutes / 60);
+                const minutes = travelTimeMinutes % 60;
+                travelTimeStr = `${hours} hr${hours > 1 ? 's' : ''}` + (minutes > 0 ? ` ${minutes} min` : '');
+            }
+            routeFinderResult.innerHTML = `<b>Route:</b> ${lineSequence.map(l => `Line ${l}`).join(' → ')}<br><b>Stations:</b> ${stationCount - 2}<br><b>Total distance:</b> ${totalDistanceKm.toFixed(2)} km<br><b>Transfers:</b> ${transfers}<br><b>Estimated travel time:</b> ${travelTimeStr}`;
             // Add Exit Route Finder button
             let exitBtn = document.getElementById('route-finder-exit-btn');
             if (!exitBtn) {
@@ -468,22 +493,45 @@ function attachRouteFinderToMarker(marker, lat, lng) {
     });
 }
 
-// Dijkstra's algorithm for shortest path on lines graph, only using visible lines
+// Dijkstra's algorithm for shortest path on lines graph, prioritizing fewer transfers
 function dijkstraLinesVisible(graph, start, end, visibleLineIds) {
-    const dist = {}, prev = {}, Q = new Set(Object.keys(graph.nodes));
-    for (const v of Q) dist[v] = Infinity;
+    // Each state: {node, cost, prev, line, transfers}
+    const Q = new Set(Object.keys(graph.nodes));
+    const dist = {}, prev = {}, prevLine = {}, transfers = {};
+    for (const v of Q) {
+        dist[v] = Infinity;
+        transfers[v] = Infinity;
+    }
     dist[start] = 0;
+    transfers[start] = 0;
+    prevLine[start] = null;
     while (Q.size) {
-        let u = null, min = Infinity;
-        for (const v of Q) { if (dist[v] < min) { min = dist[v]; u = v; } }
+        // Find node with min (transfers, dist)
+        let u = null, minTransfers = Infinity, minDist = Infinity;
+        for (const v of Q) {
+            if (
+                transfers[v] < minTransfers ||
+                (transfers[v] === minTransfers && dist[v] < minDist)
+            ) {
+                minTransfers = transfers[v];
+                minDist = dist[v];
+                u = v;
+            }
+        }
         if (u === null || u === end) break;
         Q.delete(u);
         for (const e of (graph.edges[u] || [])) {
             if (!visibleLineIds.has(e.lineId)) continue;
+            const newTransfers = (prevLine[u] === null || prevLine[u] === e.lineId) ? transfers[u] : transfers[u] + 1;
             const alt = dist[u] + e.dist;
-            if (alt < dist[e.to]) {
+            if (
+                newTransfers < transfers[e.to] ||
+                (newTransfers === transfers[e.to] && alt < dist[e.to])
+            ) {
                 dist[e.to] = alt;
                 prev[e.to] = u;
+                prevLine[e.to] = e.lineId;
+                transfers[e.to] = newTransfers;
             }
         }
     }
