@@ -1,0 +1,27 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f8f8f8;
+}
+
+#map {
+    width: 100vw;
+    height: 70vh;
+    margin-bottom: 1em;
+}
+
+#controls {
+    background: #fff;
+    padding: 1em;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+    max-width: 400px;
+    margin: 0 auto 2em auto;
+}
+
+#layer-toggles label {
+    display: block;
+    margin-bottom: 0.5em;
+    font-size: 1em;
+}

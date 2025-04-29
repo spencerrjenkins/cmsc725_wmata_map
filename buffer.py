@@ -97,3 +97,47 @@ combined_df.reset_index(inplace=True, drop=True)
 combined_df.to_file("data/md/non-population-points/combined_df.geojson", driver="GeoJSON")
 combined_df = gpd.GeoDataFrame.from_file("data/dc/non-population-points/combined_df.geojson")
 combined_df
+
+'''import os
+import geopandas as gpd
+import pandas as pd
+
+def combine_geojson_files(directory):
+    geojson_files = [f for f in os.listdir(directory) if f.endswith('.geojson')]
+    gdfs = []
+
+    for file in geojson_files:
+        file_path = os.path.join(directory, file)
+        gdf = gpd.read_file(file_path)
+        # Convert column names to lowercase
+        gdf.columns = [col.lower() for col in gdf.columns]
+        gdfs.append(gdf)
+
+    combined_gdf = gpd.GeoDataFrame(pd.concat(gdfs, ignore_index=True))
+    return combined_gdf
+
+new_va_df = combine_geojson_files("data/va/non-population-points")'''
+
+'''# Ensure va_counties and va_codes are available in the notebook
+
+# Prepare lowercase versions for matching
+va_counties_lower = [c.lower() for c in va_counties]
+va_codes_set = set([int(code) for code in va_codes])
+
+def row_filter(row):
+    city = str(row.get("city", "")).lower()
+    fipscode = row.get("fipscode", None)
+    fipsname = str(row.get("fipsname", "")).lower()
+    # Check city substring
+    city_match = any(city in county for county in va_counties_lower)
+    # Check fipscode % 1000
+    try:
+        fipscode_mod = int(fipscode) % 1000
+        fipscode_match = fipscode_mod in va_codes_set
+    except Exception:
+        fipscode_match = False
+    # Check fipsname substring
+    fipsname_match = any(fipsname in county for county in va_counties_lower)
+    return city_match or fipscode_match or fipsname_match
+
+filtered_va_df = new_va_df[new_va_df.apply(row_filter, axis=1)].reset_index(drop=True)'''

@@ -43,7 +43,7 @@ def fitness(route_set, positions, kde, radius=2000, node_types=None):
     for walk in route_set:
         unique_nodes.update(walk)
     coverage_score = len(unique_nodes)
-    return sum(route_scores) + 0.1 * coverage_score + 10 * pattern_bonus  # Tune weights as needed
+    return sum(route_scores) + 10 * coverage_score + 1000 * pattern_bonus  # Tune weights as needed
 
 def selection(population, fitnesses, num_selected):
     """Select the best individuals based on fitness."""
@@ -91,6 +91,7 @@ def genetic_algorithm(
 
     population = initialize_population(graph, positions, population_size, num_routes, min_distance, max_distance)
     for gen in range(generations):
+        print(f"generation {gen}", end="\r", flush=True)
         fitnesses = [fitness(route_set, positions, kde, radius, node_types) for route_set in population]
         # Selection
         selected = selection(population, fitnesses, max(2, population_size // 2))
