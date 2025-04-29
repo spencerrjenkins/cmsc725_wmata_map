@@ -49,7 +49,6 @@ fetchGeoJSON('../data/output/network.geojson').then(data => {
     });
     layers['Network'] = networkLayer;
     // Do not add to map by default
-    addLayerToggle('Network', false);
     layerOrder.push('Network');
 });
 
@@ -63,10 +62,12 @@ function loadLinesGeoJSON(source) {
         if (lineMarkers[name]) lineMarkers[name].forEach(m => map.removeLayer(m));
         delete layers[name];
         delete lineMarkers[name];
+        delete vertexLineMap[name];
+        catchmentCircles.length = 0;
     });
     currentLinesLayerNames.length = 0;
     // Load the selected lines file
-    fetchGeoJSON(`../data/output/${source}.geojson`).then(data => {
+    /*fetchGeoJSON(`../data/output/${source}.geojson`).then(data => {
         (data.features || []).forEach((feature, i) => {
             const color = COLORS[i % COLORS.length];
             const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
@@ -120,6 +121,91 @@ function loadLinesGeoJSON(source) {
         });
         // Remove all previous line toggles before rendering new ones
         renderLayerToggles();
+    });*/
+    // Load lines and add tooltips, vertex markers, and circles
+    fetchGeoJSON(`../data/output/${source}.geojson`).then(data => {
+        // First, build a map of vertex => [line_ids], and vertex => kde
+        (data.features || []).forEach((feature, i) => {
+            const coords = feature.geometry.coordinates;
+            const kdeValues = feature.properties.kde_values || [];
+            coords.forEach((coord, idx) => {
+                const key = roundCoord(coord).join(',');
+                if (!vertexLineMap[key]) vertexLineMap[key] = [];
+                vertexLineMap[key].push(feature.properties.line_id);
+                if (!vertexKDEMap[key]) vertexKDEMap[key] = kdeValues[idx];
+            });
+        });
+        // Draw lines with tooltips
+        (data.features || []).forEach((feature, i) => {
+            const color = COLORS[i % COLORS.length];
+            const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
+            const numStations = feature.geometry.coordinates.length;
+            const name = `Line ${feature.properties.line_id ?? i}`;
+            lineMarkers[name] = [];
+            const lineLayer = L.geoJSON(feature, {
+                style: { color, weight: 4, opacity: 1 },
+                onEachFeature: (feat, layer) => {
+                    const totalDistance = (feat.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
+                    const numStations = feat.geometry.coordinates.length;
+                    layer.bindTooltip(
+                        `Line ${feat.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStations}`,
+                        {
+                            sticky: true,
+                            direction: 'top',
+                            offset: [0, -10]
+                        }
+                    );
+                }
+            });
+            layers[name] = lineLayer;
+            lineLayer.addTo(map);
+            lineLayerNames.push(name);
+
+            lineMarkers[name] = [];
+
+            currentLinesLayerNames.push(name);
+            // Add vertex markers, popups, and circles
+            const coords = feature.geometry.coordinates;
+            const kdeValues = feature.properties.kde_values || [];
+            coords.forEach((coord, idx) => {
+                const key = roundCoord(coord).join(',');
+                const kde = vertexKDEMap[key];
+                const linesHere = vertexLineMap[key] || [];
+                const icon = L.icon({
+                    iconUrl: 'assets/wmata.svg',
+                    iconSize: [10, 10],
+                    iconAnchor: [7, 7],
+                    popupAnchor: [0, -7]
+                });
+                const marker = L.marker([coord[1], coord[0]], { icon }).addTo(map);
+                attachRouteFinderToMarker(marker, coord[1], coord[0]);
+                const tooltip = `<b>Station</b><br>KDE Score: ${kde?.toFixed(2) ?? 'N/A'}<br>Lines: ${linesHere.map(l => `Line ${l}`).join(', ')}`;
+                marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -10], sticky: false });
+                lineMarkers[name].push(marker);
+                // Circle of 700m
+                const circle = L.circle([coord[1], coord[0]], {
+                    radius: 700,
+                    color: color,
+                    fill: false,
+                    weight: 1,
+                    opacity: 0.3
+                });
+                catchmentCircles.push(circle);
+                // Do not add to map by default
+            });
+        });
+        // After all lines are loaded, sort lineLayerNames numerically
+        currentLinesLayerNames.sort((a, b) => {
+            const numA = parseInt(a.replace('Line ', ''));
+            const numB = parseInt(b.replace('Line ', ''));
+            return numA - numB;
+        });
+        // Update layerOrder: all lines in order, then Network last
+        layerOrder.length = 0;
+        lineLayerNames.forEach(n => layerOrder.push(n));
+        if (layers['Network']) layerOrder.push('Network');
+        // Re-render toggles
+        renderLayerToggles();
     });
 }
 
@@ -141,92 +227,7 @@ document.getElementById('controls').appendChild(linesSourceSelect);
 // On page load, load default lines
 loadLinesGeoJSON(currentLinesSource);
 
-// Load lines and add tooltips, vertex markers, and circles
-fetchGeoJSON('../data/output/lines_naive.geojson').then(data => {
-    // First, build a map of vertex => [line_ids], and vertex => kde
-    (data.features || []).forEach((feature, i) => {
-        const coords = feature.geometry.coordinates;
-        const kdeValues = feature.properties.kde_values || [];
-        coords.forEach((coord, idx) => {
-            const key = roundCoord(coord).join(',');
-            if (!vertexLineMap[key]) vertexLineMap[key] = [];
-            vertexLineMap[key].push(feature.properties.line_id);
-            if (!vertexKDEMap[key]) vertexKDEMap[key] = kdeValues[idx];
-        });
-    });
-    // Draw lines with tooltips
-    (data.features || []).forEach((feature, i) => {
-        const color = COLORS[i % COLORS.length];
-        const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
-        const numStations = feature.geometry.coordinates.length;
-        const name = `Line ${feature.properties.line_id ?? i}`;
-        lineMarkers[name] = [];
-        const lineLayer = L.geoJSON(feature, {
-            style: { color, weight: 4, opacity: 1 },
-            onEachFeature: (feat, layer) => {
-                const totalDistance = (feat.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
-                const numStations = feat.geometry.coordinates.length;
-                layer.bindTooltip(
-                    `Line ${feat.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStations}`,
-                    {
-                        sticky: true,
-                        direction: 'top',
-                        offset: [0, -10]
-                    }
-                );
-            }
-        });
-        layers[name] = lineLayer;
-        lineLayer.addTo(map);
-        addLayerToggle(name, true);
-        lineLayerNames.push(name);
-        // Add vertex markers, popups, and circles
-        const coords = feature.geometry.coordinates;
-        const kdeValues = feature.properties.kde_values || [];
-        coords.forEach((coord, idx) => {
-            const key = roundCoord(coord).join(',');
-            const kde = vertexKDEMap[key];
-            const linesHere = vertexLineMap[key] || [];
-            const icon = L.icon({
-                iconUrl: 'assets/wmata.svg',
-                iconSize: [10, 10],
-                iconAnchor: [7, 7],
-                popupAnchor: [0, -7]
-            });
-            const marker = L.marker([coord[1], coord[0]], { icon }).addTo(map);
-            attachRouteFinderToMarker(marker, coord[1], coord[0]);
-            const popup = `<b>Vertex</b><br>KDE Score: ${kde?.toFixed(2) ?? 'N/A'}<br>Lines: ${linesHere.map(l => `Line ${l}`).join(', ')}`;
-            marker.bindPopup(popup);
-            lineMarkers[name].push(marker);
-            // Circle of 700m
-            const circle = L.circle([coord[1], coord[0]], {
-                radius: 700,
-                color: color,
-                fill: false,
-                weight: 1,
-                opacity: 0.3
-            });
-            catchmentCircles.push(circle);
-            // Do not add to map by default
-        });
-    });
-    // After all lines are loaded, sort lineLayerNames numerically
-    lineLayerNames.sort((a, b) => {
-        const numA = parseInt(a.replace('Line ', ''));
-        const numB = parseInt(b.replace('Line ', ''));
-        return numA - numB;
-    });
-    // Update layerOrder: all lines in order, then Network last
-    layerOrder.length = 0;
-    lineLayerNames.forEach(n => layerOrder.push(n));
-    if (layers['Network']) layerOrder.push('Network');
-    // Re-render toggles
-    renderLayerToggles();
-});
 
-function addLayerToggle(name, checked) {
-    // No-op: toggles are rendered in renderLayerToggles
-}
 
 function renderLayerToggles() {
     while (layerToggles.firstChild) layerToggles.removeChild(layerToggles.firstChild);
