@@ -142,7 +142,7 @@ document.getElementById('controls').appendChild(linesSourceSelect);
 loadLinesGeoJSON(currentLinesSource);
 
 // Load lines and add tooltips, vertex markers, and circles
-fetchGeoJSON('../data/output/lines.geojson').then(data => {
+fetchGeoJSON('../data/output/lines_naive.geojson').then(data => {
     // First, build a map of vertex => [line_ids], and vertex => kde
     (data.features || []).forEach((feature, i) => {
         const coords = feature.geometry.coordinates;
@@ -296,7 +296,7 @@ const routeFinderStatus = document.getElementById('route-finder-status');
 const routeFinderResult = document.getElementById('route-finder-result');
 
 // Load lines graph for routing
-fetchGeoJSON('../data/output/lines.geojson').then(data => {
+fetchGeoJSON('../data/output/lines_naive.geojson').then(data => {
     linesGraph = { nodes: {}, edges: {} };
     (data.features || []).forEach(f => {
         const coords = f.geometry.coordinates;
