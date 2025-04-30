@@ -279,7 +279,7 @@ if __name__ == "__main__":
     with open("pickle/ex_map_dc.pkl", "rb") as f:   
         ex_map = pickle.load(f)
     best_routes, best_score, log = genetic_algorithm(
-    graph, positions, kde, num_routes=20,population_size=100,generations=20,
+    graph, positions, kde, num_routes=20,population_size=100,generations=30,
     min_distance=35000, max_distance=50000, radius=500, mutation_rate=0.1,
     core_bounds=ex_map
     )

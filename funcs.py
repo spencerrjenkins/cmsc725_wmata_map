@@ -640,11 +640,13 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
             elif node_line_count[node] > 1:
                 station_nodes.add(node)
     node_station_status = {}
-    for walk in walks:
+    for a, walk in enumerate(walks):
         n = len(walk)
         prev_station_node = None
         prev_node = None
         for i, node in enumerate(walk):
+            #if a == 10 and i > 0:
+            #        print(a, i, haversine(positions[walk[i]], positions[walk[i-1]]))
             if node in station_nodes:
                 node_station_status[node] = True
                 prev_station_node = node
@@ -655,7 +657,13 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
                 curr_node = node
                 total_distance = 0
                 while curr_node != prev_station_node:
-                    total_distance += graph[curr_node][curr_prev_node].get("weight", None)
+                    if curr_prev_node in graph[curr_node]:
+                        total_distance += graph[curr_node][curr_prev_node].get("weight", None)
+                    elif curr_node in graph[curr_prev_node]:
+                        total_distance += graph[curr_prev_node][curr_node].get("weight", None)
+                    else:
+                        #print(" - ", c, haversine(positions[curr_node], positions[curr_prev_node]))
+                        total_distance += haversine(positions[curr_node], positions[curr_prev_node])
                     curr_node = curr_prev_node
                     curr_prev_node = walk[i-c]
                     c+=1

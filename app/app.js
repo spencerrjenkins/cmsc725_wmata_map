@@ -53,7 +53,7 @@ fetchGeoJSON('../data/output/network.geojson').then(data => {
 });
 
 // Add support for toggling between lines_naive and lines_genetic
-let currentLinesSource = 'lines_naive'; // 'lines_naive', or 'lines_genetic'
+let currentLinesSource = 'lines_genetic'; // 'lines_naive', or 'lines_genetic'
 
 function loadLinesGeoJSON(source) {
     // Remove existing line layers and markers
@@ -94,7 +94,6 @@ function loadLinesGeoJSON(source) {
                 }
             });
         });
-        console.log(vertexLineMap);
         // Draw lines with tooltips
         (data.features || []).forEach((feature, i) => {
             const color = COLORS[i % COLORS.length];
@@ -168,6 +167,31 @@ function loadLinesGeoJSON(source) {
         if (layers['Network']) layerOrder.push('Network');
         // Re-render toggles
         renderLayerToggles();
+        linesGraph = { nodes: {}, edges: {} };
+        (data.features || []).forEach(f => {
+            const coords = f.geometry.coordinates;
+            const lineId = f.properties.line_id;
+            for (let i = 0; i < coords.length; ++i) {
+                const latlng = [coords[i][1], coords[i][0]];
+                const key = latlng.join(',');
+                linesGraph.nodes[key] = latlng;
+                if (!nodeToLineIds[key]) nodeToLineIds[key] = new Set();
+                nodeToLineIds[key].add(lineId);
+            }
+            for (let i = 0; i < coords.length - 1; ++i) {
+                const a = [coords[i][1], coords[i][0]].join(',');
+                const b = [coords[i + 1][1], coords[i + 1][0]].join(',');
+                const dist = L.latLng(coords[i][1], coords[i][0]).distanceTo(L.latLng(coords[i + 1][1], coords[i + 1][0]));
+                if (!linesGraph.edges[a]) linesGraph.edges[a] = [];
+                if (!linesGraph.edges[b]) linesGraph.edges[b] = [];
+                linesGraph.edges[a].push({ to: b, dist, lineId });
+                linesGraph.edges[b].push({ to: a, dist, lineId });
+                // For description
+                const pairKey = [a, b].sort().join('|');
+                if (!lineIdByNodePair[pairKey]) lineIdByNodePair[pairKey] = new Set();
+                lineIdByNodePair[pairKey].add(lineId);
+            }
+        });
     });
 }
 
@@ -289,9 +313,48 @@ function createRealWorldNetworkToggle() {
         layerToggles.appendChild(label);
     }
 }
-// Call this in renderLayerToggles
+// Add toggle all lines checkbox
+function createToggleAllLinesCheckbox() {
+    let label = document.getElementById('toggle-all-lines-label');
+    if (!label) {
+        label = document.createElement('label');
+        label.id = 'toggle-all-lines-label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = 'toggle-all-lines';
+        checkbox.checked = currentLinesLayerNames.every(name => {
+            const cb = document.getElementById(`layer-toggle-${name.replace(/\s/g, '-')}`);
+            return cb && cb.checked;
+        });
+        checkbox.onchange = () => {
+            const checked = checkbox.checked;
+            currentLinesLayerNames.forEach(name => {
+                const cb = document.getElementById(`layer-toggle-${name.replace(/\s/g, '-')}`);
+                if (cb && !cb.disabled) {
+                    cb.checked = checked;
+                    cb.onchange();
+                }
+            });
+        };
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(' Toggle all lines'));
+        layerToggles.insertBefore(label, layerToggles.firstChild);
+        checkbox.checked = true;
+    } else {
+        // Update checked state
+        const checkbox = document.getElementById('toggle-all-lines');
+        if (checkbox) {
+            checkbox.checked = currentLinesLayerNames.every(name => {
+                const cb = document.getElementById(`layer-toggle-${name.replace(/\s/g, '-')}`);
+                return cb && cb.checked;
+            });
+        }
+    }
+}
+
 function renderLayerToggles() {
     while (layerToggles.firstChild) layerToggles.removeChild(layerToggles.firstChild);
+    createToggleAllLinesCheckbox();
     // Render all line toggles in order (use currentLinesLayerNames for currently loaded network)
     currentLinesLayerNames.forEach(n => createToggle(n, map.hasLayer(layers[n])));
     // Restore Network toggle if present
@@ -365,31 +428,7 @@ const routeFinderResult = document.getElementById('route-finder-result');
 
 // Load lines graph for routing
 fetchGeoJSON('../data/output/lines_naive.geojson').then(data => {
-    linesGraph = { nodes: {}, edges: {} };
-    (data.features || []).forEach(f => {
-        const coords = f.geometry.coordinates;
-        const lineId = f.properties.line_id;
-        for (let i = 0; i < coords.length; ++i) {
-            const latlng = [coords[i][1], coords[i][0]];
-            const key = latlng.join(',');
-            linesGraph.nodes[key] = latlng;
-            if (!nodeToLineIds[key]) nodeToLineIds[key] = new Set();
-            nodeToLineIds[key].add(lineId);
-        }
-        for (let i = 0; i < coords.length - 1; ++i) {
-            const a = [coords[i][1], coords[i][0]].join(',');
-            const b = [coords[i + 1][1], coords[i + 1][0]].join(',');
-            const dist = L.latLng(coords[i][1], coords[i][0]).distanceTo(L.latLng(coords[i + 1][1], coords[i + 1][0]));
-            if (!linesGraph.edges[a]) linesGraph.edges[a] = [];
-            if (!linesGraph.edges[b]) linesGraph.edges[b] = [];
-            linesGraph.edges[a].push({ to: b, dist, lineId });
-            linesGraph.edges[b].push({ to: a, dist, lineId });
-            // For description
-            const pairKey = [a, b].sort().join('|');
-            if (!lineIdByNodePair[pairKey]) lineIdByNodePair[pairKey] = new Set();
-            lineIdByNodePair[pairKey].add(lineId);
-        }
-    });
+
 });
 
 // Helper: get currently visible line IDs
