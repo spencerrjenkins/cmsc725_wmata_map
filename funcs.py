@@ -192,7 +192,7 @@ def reduce_degree(graph, pos, max_degree=4, angle_threshold=10):
             angles = compute_angles()
             angles.sort()
 
-            while angles:
+            while False and angles:
                 _, n1, n2 = angles.pop(0)
 
                 if graph.has_edge(node, n1) and graph.has_edge(node, n2):
@@ -285,6 +285,7 @@ def perform_walks(
     max_distance=200000,
     traversed_edges=set(),
     complete_traversed_edges=[],
+    min_angle=110,
 ):
     def get_straightest_edge(node, prev_node, visited):
         neighbors = [
@@ -300,7 +301,7 @@ def perform_walks(
 
         v1 = (pos[prev_node][0] - pos[node][0], pos[prev_node][1] - pos[node][1])
 
-        # Compute angles and filter for those > 90 degrees
+        # Compute angles and filter by angle
         candidates = []
         for n in neighbors:
             edge = (node, n)
@@ -311,14 +312,13 @@ def perform_walks(
             # plt.show()
             # plt.clf()
             angle = angle_between(v1, v2)
-            # print(angle)
-            if angle > 100:
+            if angle > min_angle:
                 candidates.append((n, angle))
 
         if not candidates:
             return None
 
-        # Choose the neighbor with the smallest angle > 90 degrees (straightest)
+        # Choose the neighbor with the largest angle
         return max(candidates, key=lambda x: x[1])[0]
 
     walks = []
@@ -620,7 +620,7 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
     Mark nodes as stations or non-stations based on:
     - Terminal stations (endpoints of a line) are always stations.
     - Transfer stations (nodes shared by two or more lines) are always stations.
-    - Any other node that is less than min_station_dist (meters) from its neighbors is marked as non-station.
+    - Any other node is marked as a non-station if it is less than min_station_dist (meters) away from the previous STATION node in the walk.
     Returns: dict {node: True/False}
     """
     from collections import defaultdict
@@ -639,24 +639,30 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
                 station_nodes.add(node)
             elif node_line_count[node] > 1:
                 station_nodes.add(node)
-    # Mark other nodes
     node_station_status = {}
     for walk in walks:
         n = len(walk)
+        prev_station_node = None
+        prev_node = None
         for i, node in enumerate(walk):
             if node in station_nodes:
                 node_station_status[node] = True
+                prev_station_node = node
             else:
+                c=2
                 is_station = True
-                prev_node = walk[i - 1] if i > 0 else None
-                next_node = walk[i + 1] if i < n - 1 else None
-                if prev_node and graph.has_edge(node, prev_node):
-                    d_prev = graph[node][prev_node].get("weight", None)
-                    if d_prev is not None and d_prev < min_station_dist:
-                        is_station = False
-                if next_node and graph.has_edge(node, next_node):
-                    d_next = graph[node][next_node].get("weight", None)
-                    if d_next is not None and d_next < min_station_dist:
-                        is_station = False
+                curr_prev_node = prev_node
+                curr_node = node
+                total_distance = 0
+                while curr_node != prev_station_node:
+                    total_distance += graph[curr_node][curr_prev_node].get("weight", None)
+                    curr_node = curr_prev_node
+                    curr_prev_node = walk[i-c]
+                    c+=1
+                if total_distance < min_station_dist:
+                    is_station = False
                 node_station_status[node] = is_station
+                if is_station:
+                    prev_station_node = node
+            prev_node = node
     return node_station_status

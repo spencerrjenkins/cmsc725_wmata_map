@@ -29,7 +29,7 @@ const lineLayerNames = [];
 
 // Utility: round coordinate for matching
 function roundCoord(coord) {
-    return [Number(coord[0].toFixed(6)), Number(coord[1].toFixed(6))];
+    return [Number(coord[0].toFixed(6)), Number(coord[1].toFixed(6))].sort();
 }
 
 // Store which lines stop at each vertex
@@ -57,72 +57,17 @@ let currentLinesSource = 'lines_naive'; // 'lines_naive', or 'lines_genetic'
 
 function loadLinesGeoJSON(source) {
     // Remove existing line layers and markers
+    for (var member in vertexLineMap) delete vertexLineMap[member];
+    console.log("YO");
     currentLinesLayerNames.forEach(name => {
         if (layers[name]) map.removeLayer(layers[name]);
         if (lineMarkers[name]) lineMarkers[name].forEach(m => map.removeLayer(m));
         delete layers[name];
         delete lineMarkers[name];
-        delete vertexLineMap[name];
-        delete linesHere[name];
         catchmentCircles.length = 0;
     });
     currentLinesLayerNames.length = 0;
     // Load the selected lines file
-    /*fetchGeoJSON(`../data/output/${source}.geojson`).then(data => {
-        (data.features || []).forEach((feature, i) => {
-            const color = COLORS[i % COLORS.length];
-            const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
-            const numStations = feature.geometry.coordinates.length;
-            const name = `Line ${feature.properties.line_id ?? i}`;
-            lineMarkers[name] = [];
-            const lineLayer = L.geoJSON(feature, {
-                style: { color, weight: 4, opacity: 1 },
-                onEachFeature: (feat, layer) => {
-                    const totalDistance = (feat.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
-                    const numStations = feat.geometry.coordinates.length;
-                    layer.bindTooltip(
-                        `Line ${feat.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStations}`,
-                        {
-                            sticky: true,
-                            direction: 'top',
-                            offset: [0, -10]
-                        }
-                    );
-                }
-            });
-            layers[name] = lineLayer;
-            lineLayer.addTo(map);
-            lineMarkers[name] = [];
-            currentLinesLayerNames.push(name);
-            // Add vertex markers, popups, and circles
-            const coords = feature.geometry.coordinates;
-            const kdeValues = feature.properties.kde_values || [];
-            coords.forEach((coord, idx) => {
-                const key = roundCoord(coord).join(',');
-                const kde = vertexKDEMap[key];
-                const linesHere = vertexLineMap[key] || [];
-                const icon = L.icon({
-                    iconUrl: 'assets/wmata.svg',
-                    iconSize: [10, 10],
-                    iconAnchor: [7, 7],
-                    popupAnchor: [0, -7]
-                });
-                const marker = L.marker([coord[1], coord[0]], { icon }).addTo(map);
-                attachRouteFinderToMarker(marker, coord[1], coord[0]);
-                const popup = `<b>Vertex</b><br>KDE Score: ${kde?.toFixed(2) ?? 'N/A'}<br>Lines: ${linesHere.map(l => `Line ${l}`).join(', ')}`;
-                marker.bindPopup(popup);
-                lineMarkers[name].push(marker);
-            });
-        });
-        // After all lines are loaded, sort currentLinesLayerNames numerically
-        currentLinesLayerNames.sort((a, b) => {
-            const numA = parseInt(a.replace('Line ', ''));
-            const numB = parseInt(b.replace('Line ', ''));
-            return numA - numB;
-        });
-        // Remove all previous line toggles before rendering new ones
-        renderLayerToggles();
-    });*/
     // Load lines and add tooltips, vertex markers, and circles
     fetchGeoJSON(`../data/output/${source}.geojson`).then(data => {
         // First, build a map of vertex => [line_ids], and vertex => kde
@@ -136,6 +81,20 @@ function loadLinesGeoJSON(source) {
                 if (!vertexKDEMap[key]) vertexKDEMap[key] = kdeValues[idx];
             });
         });
+        // Populate stationStatusByCoord from is_station attributes
+        (data.features || []).forEach((feature, i) => {
+            const coords = feature.geometry.coordinates;
+            const isStationArr = feature.properties.is_station || [];
+            coords.forEach((coord, idx) => {
+                const key = roundCoord(coord).join(',');
+                if (isStationArr.length > idx) {
+                    stationStatusByCoord[key] = isStationArr[idx];
+                } else {
+                    stationStatusByCoord[key] = true; // fallback: treat as station
+                }
+            });
+        });
+        console.log(vertexLineMap);
         // Draw lines with tooltips
         (data.features || []).forEach((feature, i) => {
             const color = COLORS[i % COLORS.length];
@@ -233,14 +192,118 @@ loadLinesGeoJSON(currentLinesSource);
 // Store is_station info for each node globally
 const stationStatusByCoord = {};
 
+// --- Real-World Transit Network Layer ---
+let realWorldNetworkLayer = null;
+function loadRealWorldNetwork() {
+    // Remove previous layer if present
+    if (realWorldNetworkLayer) {
+        map.removeLayer(realWorldNetworkLayer);
+        realWorldNetworkLayer = null;
+    }
+    // List of real-world network GeoJSONs and color logic
+    const files = [
+        {
+            url: '../data/real_transit/DC_Streetcar_Routes.geojson',
+            color: 'brown',
+            name: 'DC Streetcar'
+        },
+        {
+            url: '../data/real_transit/Maryland_Transit_-_MARC_Train_Lines.geojson',
+            colorFn: function (props) {
+                if (props.Rail_Name && props.Rail_Name.includes('Brunswick')) return '#EFAD1D';
+                if (props.Rail_Name && props.Rail_Name.includes('Camden')) return '#F15828';
+                return '#C71F3E';
+            },
+            name: 'MARC Train'
+        },
+        {
+            url: '../data/real_transit/Metro_Lines_Regional.geojson',
+            colorFn: function (props) {
+                if (props.NAME && props.NAME.includes('orange')) return '#F9921D';
+                if (props.NAME && props.NAME.includes('silver')) return '#A1A3A1';
+                if (props.NAME && props.NAME.includes('red')) return '#E41838';
+                if (props.NAME && props.NAME.includes('yellow')) return '#FED201';
+                if (props.NAME && props.NAME.includes('green')) return '#01A850';
+                return '#0077C1';
+            },
+            name: 'WMATA Metro'
+        },
+        {
+            url: '../data/real_transit/Virginia_Railway_Express_Routes.geojson',
+            colorFn: function (props) {
+                if (props.RAILWAY_NM && props.RAILWAY_NM.includes('Manassas')) return '#156DB4';
+                return '#DD3534';
+            },
+            name: 'VRE'
+        },
+        {
+            url: '../data/real_transit/PurpleLineAlignment.geojson',
+            color: '#793390',
+            name: 'Purple Line'
+        }
+    ];
+    // Load all files and add to map as a single layer group
+    Promise.all(files.map(f => fetchGeoJSON(f.url).then(data => ({ ...f, data }))))
+
+        .then(layers => {
+            const group = L.layerGroup();
+            layers.forEach(f => {
+                const colorFn = f.colorFn || (() => f.color);
+                const geoLayer = L.geoJSON(f.data, {
+                    style: feature => ({
+                        color: colorFn(feature.properties),
+                        weight: 2, // Set weight to 2 for real-world network
+                        opacity: 1,
+                        dashArray: '2 2',
+                    })
+                });
+                group.addLayer(geoLayer);
+            });
+            realWorldNetworkLayer = group;
+            // Add to map if toggled on
+            const cb = document.getElementById('layer-toggle-RealWorldNetwork');
+            if (cb && cb.checked) realWorldNetworkLayer.addTo(map);
+        });
+}
+// Add checkbox for real-world network
+function createRealWorldNetworkToggle() {
+    const id = 'layer-toggle-RealWorldNetwork';
+    let label = document.getElementById('realworld-toggle-label');
+    if (!label) {
+        label = document.createElement('label');
+        label.id = 'realworld-toggle-label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = id;
+        checkbox.checked = false;
+        checkbox.onchange = () => {
+            if (checkbox.checked) {
+                if (!realWorldNetworkLayer) loadRealWorldNetwork();
+                else realWorldNetworkLayer.addTo(map);
+            } else {
+                if (realWorldNetworkLayer) map.removeLayer(realWorldNetworkLayer);
+            }
+        };
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(' Real-world transit network'));
+        layerToggles.appendChild(label);
+    }
+}
+// Call this in renderLayerToggles
 function renderLayerToggles() {
     while (layerToggles.firstChild) layerToggles.removeChild(layerToggles.firstChild);
     // Render all line toggles in order (use currentLinesLayerNames for currently loaded network)
     currentLinesLayerNames.forEach(n => createToggle(n, map.hasLayer(layers[n])));
-    // Render network toggle if present
+    // Restore Network toggle if present
     if (layers['Network']) createToggle('Network', map.hasLayer(layers['Network']));
     // Add catchment area toggle at the end
     layerToggles.appendChild(catchmentToggleLabel);
+    createRealWorldNetworkToggle();
+    // Disable toggles for all states except 'idle'
+    const toggles = layerToggles.querySelectorAll('input[type="checkbox"]');
+    toggles.forEach(cb => {
+        cb.disabled = (routeFinderState !== 'idle');
+    });
 }
 
 function createToggle(name, checked) {
@@ -331,7 +394,7 @@ fetchGeoJSON('../data/output/lines_naive.geojson').then(data => {
 
 // Helper: get currently visible line IDs
 function getVisibleLineIds() {
-    return lineLayerNames.filter(name => {
+    return currentLinesLayerNames.filter(name => {
         const checkbox = document.getElementById(`layer-toggle-${name.replace(/\s/g, '-')}`);
         return checkbox && checkbox.checked;
     }).map(name => parseInt(name.replace('Line ', '')));
@@ -398,6 +461,7 @@ function attachRouteFinderToMarker(marker, lat, lng) {
             routeNodeMarkers.push(m);
             routeFinderBtn.textContent = 'clear';
             routeFinderBtn.disabled = false; // Enable clear after origin is selected
+            renderLayerToggles();
         } else if (routeFinderState === 'selectingEnd') {
             routeEnd = findNearestLineNodeVisible(lat, lng);
             if (!routeEnd || routeEnd === routeStart) return;
@@ -453,8 +517,8 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                 const node = path[i];
                 const coord = linesGraph.nodes[node];
                 if (!coord) continue;
-                const key = coord.join(',');
-                console.log(stationStatusByCoord[key]);
+                const key = roundCoord(coord).join(',');
+                //console.log(key, stationStatusByCoord[key]);
                 if (stationStatusByCoord[key] === undefined || stationStatusByCoord[key]) stationCount++;
             }
             // For travel time, replace (path.length - 2) * 0.4 with (stationCount - 2) * 0.4
@@ -486,9 +550,12 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                     routeFinderResult.textContent = '';
                     routeFinderBtn.textContent = 'Route Finder';
                     exitBtn.remove();
+                    renderLayerToggles();
                 };
             }
             routeFinderBtn.textContent = 'clear';
+            routeFinderState = 'results';
+            renderLayerToggles();
         }
     });
 }
