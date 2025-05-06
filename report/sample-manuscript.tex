@@ -113,7 +113,7 @@ A thourough and grounded introduction that goes into the history of Metro
 %%
 %% The "title" command has an optional parameter,
 %% allowing the author to define a "short title" to be used in page headers.
-\title{The Name of the Title Is Hope}
+\title{Reimagining Transit Networks: A Data-Driven, Algorithmic Approach for the Washington DC Region}
 
 %%
 %% The "author" command and its associated commands are used to define
@@ -197,12 +197,7 @@ A thourough and grounded introduction that goes into the history of Metro
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-  A clear and well-documented \LaTeX\ document is presented as an
-  article formatted for publication by ACM in a conference proceedings
-  or journal publication. Based on the ``acmart'' document class, this
-  article presents and explains many of the common variations, as well
-  as many of the formatting elements an author may use in the
-  preparation of the documentation of their work.
+This paper presents a computational framework for the programmatic design of a reimagined rapid transit network for the Washington, DC metropolitan area. Motivated by the historical context and limitations of the existing WMATA system, our approach leverages geospatial analysis, graph algorithms, and data visualization to generate and evaluate alternative transit networks. We describe the data sources, algorithms, and evaluation metrics used, and discuss the implications of our results for urban mobility and equity. Our open-source codebase integrates Python scripts, Jupyter notebooks, and a web-based visualization tool, providing a reproducible and extensible platform for transit network design.
 \end{abstract}
 
 %%
@@ -255,22 +250,26 @@ A thourough and grounded introduction that goes into the history of Metro
 \maketitle
 
 \section{Introduction}
-ACM's consolidated article template, introduced in 2017, provides a
-consistent \LaTeX\ style for use across ACM publications, and
-incorporates accessibility and metadata-extraction functionality
-necessary for future Digital Library endeavors. Numerous ACM and
-SIG-specific \LaTeX\ templates have been examined, and their unique
-features incorporated into this single new template.
 
-If you are new to publishing with ACM, this document is a valuable
-guide to the process of preparing your work for publication. If you
-have published with ACM before, this document provides insight and
-instruction into more recent changes to the article template.
+Urban transportation networks are foundational to the economic vitality, social equity, and environmental sustainability of metropolitan regions. The Washington Metropolitan Area Transit Authority (WMATA) Metro system, serving the greater Washington, DC area, is a prominent example of a legacy transit network whose design and evolution have been shaped by a complex interplay of historical, political, and technical factors \cite{bib:wmata-history}. While the Metro has provided essential mobility for millions since its opening in 1976, its structure and service patterns reflect the priorities and constraints of its era, and have not always kept pace with the region's changing needs. Understanding the limitations of the existing network, and the opportunities for improvement, is essential for envisioning a more connected, equitable, and sustainable future for the DC region and for urban transit more broadly.
 
-The ``\verb|acmart|'' document class can be used to prepare articles
-for any ACM publication --- conference or journal, and for any stage
-of publication, from review to final ``camera-ready'' copy, to the
-author's own version, with {\itshape very} few changes to the source.
+The original design of the WMATA Metro system was guided by a vision of facilitating efficient commutes between the rapidly growing suburbs and the downtown core. This vision was realized through a radial, hub-and-spoke network topology, with most lines converging on a central transfer point in the city. While this structure was effective for serving the dominant travel patterns of the late 20th century, it introduced several persistent limitations. First, the network makes suburb-to-suburb and circumferential travel difficult, often requiring passengers to travel into the city center and transfer, even for short cross-town trips \cite{bib:bast2016route}. Second, the network has historically underserved high-density and marginalized neighborhoods, such as Georgetown and Anacostia, due to a combination of political compromises, funding constraints, and, at times, explicit exclusion \cite{bib:overview-field}. Third, despite significant investment, the Metro has not achieved a substantial reduction in vehicle miles traveled (VMT) or car dependency in the region, as many trips remain inconvenient or impossible by transit \cite{bib:wmata-vmt}. Finally, the static nature of the network has made it difficult to adapt to shifting population centers, emerging job clusters, and evolving patterns of urban development, leaving the system less responsive to contemporary mobility needs.
+
+A critical gap in both the academic literature and practical transit planning is the lack of holistic, data-driven approaches to network redesign. Most existing studies and agency efforts focus on incremental improvements—such as adding infill stations, extending lines, or adjusting service frequencies—rather than reimagining the network from first principles. The planning process itself is often manual, opaque, and subject to political negotiation, which can introduce bias, inefficiency, and a lack of transparency \cite{bib:camporeale2016equity}. Furthermore, traditional evaluation metrics, such as ridership forecasts or cost-benefit analyses, may not fully capture the needs of underserved communities or the potential for transformative change. As a result, opportunities to address structural inequities, improve connectivity, and enhance system resilience are frequently missed. The literature reviewed in \texttt{pdf/bib.txt} highlights these challenges and underscores the need for new methodologies that leverage advances in computational science and data analytics.
+
+The necessity for a new approach is underscored by the persistent gaps in the current network's ability to connect key high-density and underserved regions. For example, the lack of direct connections between major suburban job centers, or between historically marginalized neighborhoods and the broader region, limits both economic opportunity and social inclusion. Existing evaluation frameworks may overlook these gaps, focusing instead on aggregate metrics that mask disparities in access and service quality. By contrast, a programmatic, data-driven approach can systematically identify and address these deficiencies, enabling the design of networks that maximize connectivity, coverage, and equity. Such an approach also offers the potential for reproducibility and transparency, reducing the influence of subjective or politically motivated decisions and providing a platform for ongoing improvement as new data and methods become available.
+
+To address these challenges, our study employs a suite of computational and geospatial techniques designed to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. Our data sources include high-resolution census block data, shapefiles for existing transit and road networks, and a variety of demographic and land use datasets. We use kernel density estimation (KDE) to identify areas of high transit potential, leveraging the strengths of KDE in capturing spatial patterns of demand while avoiding the granularity pitfalls associated with coarser units such as census tracts \cite{bib:silverman1986density}. This enables us to pinpoint optimal locations for new stations and lines, grounded in empirical data rather than intuition or political expediency.
+
+Graph algorithms play a central role in our methodology. We construct candidate station networks using proximity graphs, such as Gabriel graphs, which ensure that stations are connected in a spatially efficient manner while preserving the potential for robust network connectivity. Community detection algorithms are then applied to identify clusters of stations that may correspond to natural travel corridors or subregional centers. To generate candidate transit lines, we employ random walk algorithms, which explore the space of possible routes in a stochastic but controlled fashion. These initial solutions are further refined using genetic algorithms, which iteratively optimize the network based on objective criteria such as coverage, connectivity, and efficiency \cite{bib:chien2001genetic, bib:dib2017ga}. This combination of graph-theoretic and evolutionary techniques allows us to navigate the vast design space of possible networks and converge on solutions that balance multiple, sometimes competing, objectives.
+
+Efficient spatial querying is essential for both the generation and evaluation of candidate networks. To this end, we utilize spatial indexing structures such as R-trees (as implemented in RBush) and quadtrees, which enable rapid nearest-neighbor searches and spatial joins \cite{bib:samet1984quadtrees, bib:libera1986btrees}. These data structures are well-established in computational geometry and geographic information systems (GIS), and are critical for scaling our algorithms to the large and complex spatial datasets characteristic of metropolitan regions. By integrating these techniques into our workflow, we are able to perform spatial analyses and optimizations that would be infeasible with brute-force methods.
+
+Visualization and user interaction are also key components of our approach. We have developed an interactive web application (\texttt{app/app.js}) that allows users to explore generated networks, simulate itineraries, and compare alternative designs. This tool supports both expert analysis and public engagement, providing a transparent and accessible interface for evaluating the strengths and weaknesses of different network configurations. The web app is tightly integrated with our Python-based data processing and algorithmic modules (\texttt{funcs.py}, \texttt{genetic.py}), as well as with our exploratory data analysis notebook (\texttt{eda.ipynb}), ensuring a seamless workflow from data ingestion to visualization and evaluation.
+
+Our work builds on a rich body of literature in computational urbanism, spatial data structures, and network optimization. Bast et al. \cite{bib:bast2016route} provide a comprehensive review of algorithmic approaches to public transit routing, while Chien et al. \cite{bib:chien2001genetic} and Dib et al. \cite{bib:dib2017ga} demonstrate the effectiveness of genetic algorithms for transit line planning. The use of KDE for spatial analysis is well-established in geography and urban studies \cite{bib:silverman1986density}, and the application of spatial indexing structures is a standard practice in GIS \cite{bib:samet1984quadtrees}. By integrating these techniques into a unified, open-source framework, our study contributes both methodological advances and practical tools for the design of more effective and equitable transit networks.
+
+In summary, this paper presents a programmatic, data-driven framework for the design and evaluation of rapid transit networks, with a focus on the Washington, DC metropolitan area. Our approach combines geospatial analysis, graph algorithms, evolutionary optimization, and interactive visualization to address the limitations of legacy systems and to explore new possibilities for urban mobility. The remainder of the paper is organized as follows. Section~2 details the data sources, preprocessing steps, and algorithms used in our framework, referencing key components of our codebase. Section~3 presents the results of our network generation and evaluation, including quantitative metrics and visualizations. Section~4 discusses the implications of our findings for transit planning and urban mobility, and Section~5 concludes with directions for future research.
 
 \section{Template Overview}
 As noted in the introduction, the ``\verb|acmart|'' document class can
