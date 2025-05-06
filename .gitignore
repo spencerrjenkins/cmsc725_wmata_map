@@ -1,4 +1,3 @@
-*.png
 *.cpg
 *.csv
 *.dbf
@@ -11,10 +10,10 @@
 *.geojson
 venv/*
 .ipynb_checkpoints/*
-*.png
 __pycache__/api.cpython-311.pyc
 data/*
 *.pyc
 *.tar.gz
 .vscode/*
 *.pkl
+/*.png

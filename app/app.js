@@ -455,6 +455,7 @@ routeFinderBtn.onclick = () => {
         // Remove Exit button if present
         const exitBtn = document.getElementById('route-finder-exit-btn');
         if (exitBtn) exitBtn.remove();
+        clearRouteSelectionVisuals(); // <-- ensure blue marker/line are removed
         return;
     }
     // Start route finder
@@ -471,6 +472,7 @@ routeFinderBtn.onclick = () => {
     // Remove Exit button if present
     const exitBtn = document.getElementById('route-finder-exit-btn');
     if (exitBtn) exitBtn.remove();
+    clearRouteSelectionVisuals(); // <-- ensure blue marker/line are removed
 };
 
 // Helper: find nearest node in lines graph, but only for visible lines
@@ -569,7 +571,32 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                 const minutes = travelTimeMinutes % 60;
                 travelTimeStr = `${hours} hr${hours > 1 ? 's' : ''}` + (minutes > 0 ? ` ${minutes} min` : '');
             }
-            routeFinderResult.innerHTML = `<b>Route:</b> ${lineSequence.map(l => `Line ${l}`).join(' → ')}<br><b>Stations:</b> ${stationCount - 2}<br><b>Total distance:</b> ${totalDistanceKm.toFixed(2)} km<br><b>Transfers:</b> ${transfers}<br><b>Estimated travel time:</b> ${travelTimeStr}`;
+            // Add walk to route summary if needed
+            let walkSummaryStart = '';
+            let walkSummaryEnd = '';
+            let walkDistance = clickStartDist + clickEndDist;
+            let walkDistanceStrStart = '';
+            let walkDistanceStrEnd = '';
+            let walkTimeStr = '';
+            if (clickStartDist > 0) {
+                walkDistanceStrStart = `${(clickStartDist / 1000).toFixed(2)} km`;
+                walkSummaryStart = `Walk (${walkDistanceStrStart}) → `;
+            }
+            if (clickEndDist > 0) {
+                walkDistanceStrEnd = ` → Walk (${(clickEndDist / 1000).toFixed(2)} km)`;
+            }
+            if (walkDistance > 0) {
+                const walkTime = Math.ceil(walkDistance / 100); // 100 meters per minute
+                walkTimeStr = `${walkTime} min`;
+            }
+            routeFinderResult.innerHTML =
+                `<b>Route:</b> ${walkSummaryStart}${lineSequence.map(l => `Line ${l}`).join(' → ')}${walkDistanceStrEnd}` +
+                `<br><b>Stations:</b> ${stationCount - 2}` +
+                `<br><b>Total distance:</b> ${totalDistanceKm.toFixed(2)} km` +
+                `<br><b>Transfers:</b> ${transfers}` +
+                `<br><b>Estimated travel time:</b> ${travelTimeStr}` +
+                (walkDistance > 0 ? `<br><b>Total walking distance:</b> ${((clickStartDist + clickEndDist) / 1000).toFixed(2)} km` : '') +
+                (walkDistance > 0 ? `<br><b>Total walking time:</b> ${walkTimeStr}` : '');
             // Add Exit Route Finder button
             let exitBtn = document.getElementById('route-finder-exit-btn');
             if (!exitBtn) {
@@ -590,6 +617,7 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                     routeFinderBtn.textContent = 'Route Finder';
                     exitBtn.remove();
                     renderLayerToggles();
+                    clearRouteSelectionVisuals(); // <-- ensure blue marker/line are removed
                 };
             }
             routeFinderBtn.textContent = 'clear';
@@ -648,3 +676,188 @@ function dijkstraLinesVisible(graph, start, end, visibleLineIds) {
     if (path[0] != start) return [];
     return path;
 }
+
+let clickMarkerStart = null;
+let clickToStationLineStart = null;
+let clickMarkerEnd = null;
+let clickToStationLineEnd = null;
+let clickStartDist = 0;
+let clickEndDist = 0;
+
+function clearRouteSelectionVisuals() {
+    if (clickMarkerStart) { map.removeLayer(clickMarkerStart); clickMarkerStart = null; }
+    if (clickToStationLineStart) { map.removeLayer(clickToStationLineStart); clickToStationLineStart = null; }
+    if (clickMarkerEnd) { map.removeLayer(clickMarkerEnd); clickMarkerEnd = null; }
+    if (clickToStationLineEnd) { map.removeLayer(clickToStationLineEnd); clickToStationLineEnd = null; }
+    clickStartDist = 0;
+    clickEndDist = 0;
+}
+
+map.on('click', function (e) {
+    if (routeFinderState === 'selectingStart') {
+        clearRouteSelectionVisuals();
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        // Find nearest station using rbush
+        const nearestKey = findNearestLineNodeVisible(lat, lng);
+        if (!nearestKey) return;
+        const nearestCoord = linesGraph.nodes[nearestKey];
+        // Place marker at click location
+        clickMarkerStart = L.circleMarker([lat, lng], { radius: 10, color: 'blue', fillOpacity: 0.5 }).addTo(map);
+        // Draw blue dotted line
+        clickToStationLineStart = L.polyline([[lat, lng], [nearestCoord[0], nearestCoord[1]]], { color: 'blue', weight: 3, dashArray: '6 6', opacity: 0.7 }).addTo(map);
+        // Save distance in meters
+        clickStartDist = map.distance([lat, lng], [nearestCoord[0], nearestCoord[1]]);
+        // Save as start
+        routeStart = nearestKey;
+        routeFinderState = 'selectingEnd';
+        routeFinderStatus.textContent = 'Click the destination location.';
+        const m = L.circleMarker([nearestCoord[0], nearestCoord[1]], { radius: 12, color: 'green', fillOpacity: 0.7 }).addTo(map);
+        routeNodeMarkers.push(m);
+        routeFinderBtn.textContent = 'clear';
+        routeFinderBtn.disabled = false;
+        renderLayerToggles();
+    } else if (routeFinderState === 'selectingEnd') {
+        // Remove previous destination visuals if any
+        if (clickMarkerEnd) { map.removeLayer(clickMarkerEnd); clickMarkerEnd = null; }
+        if (clickToStationLineEnd) { map.removeLayer(clickToStationLineEnd); clickToStationLineEnd = null; }
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        // Find nearest station using rbush
+        const nearestKey = findNearestLineNodeVisible(lat, lng);
+        if (!nearestKey || nearestKey === routeStart) return;
+        const nearestCoord = linesGraph.nodes[nearestKey];
+        // Place marker at click location
+        clickMarkerEnd = L.circleMarker([lat, lng], { radius: 10, color: 'blue', fillOpacity: 0.5 }).addTo(map);
+        // Draw blue dotted line from click to nearest station
+        clickToStationLineEnd = L.polyline([[lat, lng], [nearestCoord[0], nearestCoord[1]]], { color: 'blue', weight: 3, dashArray: '6 6', opacity: 0.7 }).addTo(map);
+        // Save distance in meters
+        clickEndDist = map.distance([lat, lng], [nearestCoord[0], nearestCoord[1]]);
+        // Save as end
+        routeEnd = nearestKey;
+        routeFinderState = 'idle';
+        const m = L.circleMarker([nearestCoord[0], nearestCoord[1]], { radius: 12, color: 'red', fillOpacity: 0.7 }).addTo(map);
+        routeNodeMarkers.push(m);
+        routeFinderStatus.textContent = 'Finding route...';
+        // Only consider visible lines
+        const visibleLineIds = new Set(getVisibleLineIds());
+        const path = dijkstraLinesVisible(linesGraph, routeStart, routeEnd, visibleLineIds);
+        if (path.length < 2) {
+            routeFinderStatus.textContent = 'No route found.';
+            return;
+        }
+        // Draw route
+        const routeCoords = [];
+        let totalRouteDistance = 0;
+        for (let i = 0; i < path.length - 1; ++i) {
+            const from = path[i], to = path[i + 1];
+            routeCoords.push(linesGraph.nodes[from]);
+            // Calculate distance for this segment
+            const edge = (linesGraph.edges[from] || []).find(e => e.to === to);
+            if (edge) totalRouteDistance += edge.dist;
+        }
+        routeCoords.push(linesGraph.nodes[path[path.length - 1]]);
+        if (routeHighlightLayer) map.removeLayer(routeHighlightLayer);
+        routeHighlightLayer = L.polyline(routeCoords, { color: 'blue', weight: 8, opacity: 0.7 }).addTo(map);
+        // Show description with lines used and total distance
+        let lineSequence = [];
+        for (let i = 0; i < path.length - 1; ++i) {
+            const a = path[i], b = path[i + 1];
+            const pairKey = [a, b].sort().join('|');
+            const lines = lineIdByNodePair[pairKey] ? Array.from(lineIdByNodePair[pairKey]) : [];
+            if (lines.length > 0) {
+                if (lineSequence.length === 0 || lineSequence[lineSequence.length - 1] !== lines[0]) {
+                    lineSequence.push(lines[0]);
+                }
+            }
+        }
+        routeFinderStatus.textContent = 'Route found!';
+        // Calculate travel time: 80 km/h + 0.4 min per station + 6 min per transfer
+        // Add clickStartDist and clickEndDist to totalRouteDistance
+        const speed_kmh = 80;
+        const totalDistanceKm = (totalRouteDistance + clickStartDist + clickEndDist) / 1000;
+        let transfers = 0;
+        for (let i = 1; i < lineSequence.length; ++i) {
+            if (lineSequence[i] !== lineSequence[i - 1]) transfers++;
+        }
+        const travelTimeHours = totalDistanceKm / speed_kmh;
+        // Count number of stations in the path
+        let stationCount = 0;
+        for (let i = 0; i < path.length; ++i) {
+            const node = path[i];
+            const coord = linesGraph.nodes[node];
+            if (!coord) continue;
+            const key = roundCoord(coord).join(',');
+            if (stationStatusByCoord[key] === undefined || stationStatusByCoord[key]) stationCount++;
+        }
+        // For travel time, replace (path.length - 2) * 0.4 with (stationCount - 2) * 0.4
+        // Add time for clickStartDist and clickEndDist at 100 meters per minute
+        let travelTimeMinutes = travelTimeHours * 60 + Math.max(0, stationCount - 2) * 0.4 + transfers * 6 + (clickStartDist + clickEndDist) / 100;
+        travelTimeMinutes = Math.ceil(travelTimeMinutes); // round up to next whole minute
+        let travelTimeStr = `${travelTimeMinutes} min`;
+        if (travelTimeMinutes >= 60) {
+            const hours = Math.floor(travelTimeMinutes / 60);
+            const minutes = travelTimeMinutes % 60;
+            travelTimeStr = `${hours} hr${hours > 1 ? 's' : ''}` + (minutes > 0 ? ` ${minutes} min` : '');
+        }
+        // Add walk to route summary if needed
+        let walkSummaryStart = '';
+        let walkSummaryEnd = '';
+        let walkDistance = clickStartDist + clickEndDist;
+        let walkDistanceStrStart = '';
+        let walkDistanceStrEnd = '';
+        let walkTimeStr = '';
+        console.log(clickEndDist);
+        if (clickStartDist > 0) {
+            walkDistanceStrStart = `${(clickStartDist / 1000).toFixed(2)} km`;
+            walkSummaryStart = `Walk (${walkDistanceStrStart}) → `;
+        }
+        if (clickEndDist > 0) {
+            walkDistanceStrEnd = ` → Walk (${(clickEndDist / 1000).toFixed(2)} km)`;
+        }
+        if (walkDistance > 0) {
+            const walkTime = Math.ceil(walkDistance / 100); // 100 meters per minute
+            walkTimeStr = `${walkTime} min`;
+            if (walkTime >= 60) {
+                hours = Math.floor(walkTime / 60);
+                minutes = walkTime % 60;
+                walkTimeStr = `${hours} hr${hours > 1 ? 's' : ''}` + (minutes > 0 ? ` ${minutes} min` : '');
+            }
+        }
+        routeFinderResult.innerHTML =
+            `<b>Route:</b> ${walkSummaryStart}${lineSequence.map(l => `Line ${l}`).join(' → ')}${walkDistanceStrEnd}` +
+            `<br><b>Stations:</b> ${stationCount - 2}` +
+            `<br><b>Total distance:</b> ${totalDistanceKm.toFixed(2)} km` +
+            `<br><b>Transfers:</b> ${transfers}` +
+            `<br><b>Estimated travel time:</b> ${travelTimeStr}` +
+            (walkDistance > 0 ? `<br><b>Total walking distance:</b> ${((clickStartDist + clickEndDist) / 1000).toFixed(2)} km` : '') +
+            (walkDistance > 0 ? `<br><b>Total walking time:</b> ${walkTimeStr}` : '');
+        // Add Exit Route Finder button
+        let exitBtn = document.getElementById('route-finder-exit-btn');
+        if (!exitBtn) {
+            exitBtn = document.createElement('button');
+            exitBtn.id = 'route-finder-exit-btn';
+            exitBtn.textContent = 'Exit Route Finder';
+            exitBtn.style.marginLeft = '10px';
+            routeFinderBtn.parentNode.insertBefore(exitBtn, routeFinderBtn.nextSibling);
+            exitBtn.onclick = () => {
+                routeFinderState = 'idle';
+                routeStart = null;
+                routeEnd = null;
+                if (routeHighlightLayer) { map.removeLayer(routeHighlightLayer); routeHighlightLayer = null; }
+                routeNodeMarkers.forEach(m => map.removeLayer(m));
+                routeNodeMarkers = [];
+                routeFinderStatus.textContent = '';
+                routeFinderResult.textContent = '';
+                routeFinderBtn.textContent = 'Route Finder';
+                exitBtn.remove();
+                renderLayerToggles();
+                clearRouteSelectionVisuals();
+            };
+        }
+        routeFinderBtn.textContent = 'clear';
+        routeFinderState = 'results';
+        renderLayerToggles();
+        // Do not clearRouteSelectionVisuals here, keep destination visuals
+    }
+});
