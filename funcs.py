@@ -159,14 +159,6 @@ def contract_louvain_communities_with_positions(G, pos, resolution=1.0):
     return contracted_G, new_positions
 
 
-def angle_between(v1, v2):
-    dot_product = v1[0] * v2[0] + v1[1] * v2[1]
-    magnitude_v1 = math.sqrt(v1[0] ** 2 + v1[1] ** 2)
-    magnitude_v2 = math.sqrt(v2[0] ** 2 + v2[1] ** 2)
-    cos_angle = dot_product / (magnitude_v1 * magnitude_v2)
-    return math.degrees(math.acos(max(min(cos_angle, 1), -1)))
-
-
 def reduce_degree(graph, pos, max_degree=4, angle_threshold=10):
     for node in list(graph.nodes()):
         while graph.degree(node) > max_degree:
@@ -276,6 +268,25 @@ def angle_between(v1, v2):
     cos_theta = max(min(cos_theta, 1), -1)  # Clamp for numerical stability
     return math.degrees(math.acos(cos_theta))
 
+def deviation_between(v1, v2):
+    """
+    Compute the signed angle (in degrees) from -v1 to v2.
+    Negative if v2 is to the left of -v1, positive if to the right.
+    """
+    # Negate v1
+    """Calculate the signed angle in degrees between two vectors."""
+    dot = v1[0] * v2[0] + v1[1] * v2[1]
+    norm1 = math.hypot(*v1)
+    norm2 = math.hypot(*v2)
+    if norm1 == 0 or norm2 == 0:
+        return 0
+    # Replace acos-based angle with atan2 for signed result (1 line change)
+    angle = math.atan2(v1[0]*v2[1] - v1[1]*v2[0], dot)
+    degrees = math.degrees(angle)
+    if degrees > 0:
+        return 180 - degrees
+    else:
+        return -180 - math.degrees(angle)
 
 def perform_walks(
     graph,
@@ -287,17 +298,17 @@ def perform_walks(
     complete_traversed_edges=[],
     min_angle=110,
 ):
-    def get_straightest_edge(node, prev_node, visited):
+    def get_straightest_edge(node, prev_node, visited, sign):
         neighbors = [
             n
             for n in graph.neighbors(node)
             if (node, n) not in traversed_edges and n not in visited
         ]
         if not neighbors:
-            return None
+            return None, None, None
 
         if prev_node is None:
-            return random.choice(neighbors)
+            return random.choice(neighbors), 0, 0
 
         v1 = (pos[prev_node][0] - pos[node][0], pos[prev_node][1] - pos[node][1])
 
@@ -312,14 +323,16 @@ def perform_walks(
             # plt.show()
             # plt.clf()
             angle = angle_between(v1, v2)
-            if angle > min_angle:
-                candidates.append((n, angle))
+            deviation = deviation_between(v1,v2)
+            if angle > min_angle and (not sign or deviation * sign > 0):
+                candidates.append((n, deviation, angle))
 
         if not candidates:
-            return None
+            return None, None, None
 
         # Choose the neighbor with the largest angle
-        return max(candidates, key=lambda x: x[1])[0]
+        argmax = candidates.index(max(candidates, key=lambda x: x[2]))
+        return candidates[argmax]
 
     walks = []
 
@@ -333,9 +346,11 @@ def perform_walks(
         prev_node = None
         current_distance = 0
         curr_traversed_edges = set()
+        total_turn = 0
+        requested_sign = 0
 
         while current_distance < max_distance:
-            next_node = get_straightest_edge(walk[-1], prev_node, set(walk))
+            next_node, deviation, angle = get_straightest_edge(walk[-1], prev_node, set(walk), requested_sign)
 
             if next_node is None:
                 break
@@ -346,6 +361,15 @@ def perform_walks(
             # complete_traversed_edges[i].add(edge)
             # complete_traversed_edges[i].add((edge[1],edge[0]))
             walk.append(next_node)
+            total_turn += deviation
+            #print(deviation, total_turn)
+            if total_turn > 100:
+                # request negative
+                requested_sign = -1
+            elif total_turn < -100:
+                requested_sign = 1
+            else:
+                requested_sign = 0
             prev_node = walk[-2]
 
             current_distance += graph[walk[-2]][walk[-1]]["weight"]
