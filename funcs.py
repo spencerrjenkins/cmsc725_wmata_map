@@ -315,7 +315,6 @@ def perform_walks(
         # Compute angles and filter by angle
         candidates = []
         for n in neighbors:
-            edge = (node, n)
             v2 = (pos[n][0] - pos[node][0], pos[n][1] - pos[node][1])
             # plt.scatter(pos[prev_node][0], pos[prev_node][1])
             # plt.scatter(pos[node][0], pos[node][1], c='black')
@@ -343,17 +342,29 @@ def perform_walks(
             complete_traversed_edges.append(set())
         start_node = random.choice(list(graph.nodes()))
         walk = [start_node]
+        walk_reverse = [start_node]
         prev_node = None
         current_distance = 0
         curr_traversed_edges = set()
         total_turn = 0
         requested_sign = 0
+        reverse_attempted = 0
 
         while current_distance < max_distance:
             next_node, deviation, angle = get_straightest_edge(walk[-1], prev_node, set(walk), requested_sign)
 
-            if next_node is None:
+            if next_node is None and (reverse_attempted or len(walk) < 2):
                 break
+            elif next_node is None and not reverse_attempted:
+                reverse_attempted = 1
+                walk = walk_reverse
+                prev_node = walk[-2]
+                total_turn *= -1
+                if abs(total_turn) > 100:
+                    requested_sign = -1 * np.sign(total_turn)
+                elif abs(total_turn) < 40:
+                    requested_sign = 0
+                continue
 
             edge = (walk[-1], next_node)
             curr_traversed_edges.add(edge)
@@ -361,14 +372,12 @@ def perform_walks(
             # complete_traversed_edges[i].add(edge)
             # complete_traversed_edges[i].add((edge[1],edge[0]))
             walk.append(next_node)
+            walk_reverse = [next_node] + walk_reverse
             total_turn += deviation
             #print(deviation, total_turn)
-            if total_turn > 100:
-                # request negative
-                requested_sign = -1
-            elif total_turn < -100:
-                requested_sign = 1
-            else:
+            if abs(total_turn) > 100:
+                requested_sign = -1 * np.sign(total_turn)
+            elif abs(total_turn) < 40:
                 requested_sign = 0
             prev_node = walk[-2]
 
@@ -380,6 +389,7 @@ def perform_walks(
             complete_traversed_edges[i] = curr_traversed_edges
             i += 1
         else:
+            print(f"FAIL {100-timeout}", end="\r", flush=True)
             timeout -= 1
 
     return walks, traversed_edges, complete_traversed_edges

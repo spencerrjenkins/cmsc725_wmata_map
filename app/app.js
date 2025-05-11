@@ -53,7 +53,7 @@ fetchGeoJSON('../data/output/network.geojson').then(data => {
 });
 
 // Add support for toggling between lines_naive and lines_genetic
-let currentLinesSource = 'lines_genetic'; // 'lines_naive', or 'lines_genetic'
+let currentLinesSource = 'lines_naive'; // 'lines_naive', or 'lines_genetic'
 
 function loadLinesGeoJSON(source) {
     // Remove existing line layers and markers
