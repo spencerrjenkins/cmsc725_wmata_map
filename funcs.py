@@ -9,6 +9,7 @@ from pyproj import Transformer, Geod
 
 from matplotlib.patches import Circle
 import community
+from collections import defaultdict
 
 import networkx as nx
 import random
@@ -59,7 +60,7 @@ def reset_and_concat(*dfs):
 
 
 def plot_kde_heatmap(df_points, bandwidth=2000, grid_size=70, cmap="Reds"):
-    df_points_web = df_points.to_crs(epsg=3857)
+    df_points_web = df_points  # .to_crs(epsg=3857)
     coords_web = np.vstack([df_points_web.geometry.x, df_points_web.geometry.y]).T
     kde = KernelDensity(bandwidth=bandwidth, kernel="gaussian")
     kde.fit(coords_web)
@@ -72,7 +73,7 @@ def plot_kde_heatmap(df_points, bandwidth=2000, grid_size=70, cmap="Reds"):
     density = np.exp(log_dens).reshape(xx.shape)
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.imshow(np.flipud(density), extent=[minx, maxx, miny, maxy], cmap=cmap, alpha=0.6)
-    df_points_web.plot(ax=ax, color="blue", markersize=10, label="Data Points")
+    # df_points_web.plot(ax=ax, color="blue", markersize=10, label="Data Points")
     cx.add_basemap(ax, source=cx.providers.CartoDB.Positron)
     plt.colorbar(ax.images[0], label="Density")
     plt.title("Kernel Density Estimation (KDE) Heatmap")
@@ -257,6 +258,14 @@ def assign_edge_weights(graph, positions):
     return graph
 
 
+def assign_node_scores(graph, positions, kde, radius=1000):
+    weights = {}
+    for n in graph.nodes():
+        weights[n] = score_node(n, positions, kde, radius)
+    nx.set_node_attributes(graph, weights, "score")
+    return graph
+
+
 def angle_between(v1, v2):
     """Calculate the angle in degrees between two vectors."""
     dot = v1[0] * v2[0] + v1[1] * v2[1]
@@ -267,6 +276,7 @@ def angle_between(v1, v2):
     cos_theta = dot / (norm1 * norm2)
     cos_theta = max(min(cos_theta, 1), -1)  # Clamp for numerical stability
     return math.degrees(math.acos(cos_theta))
+
 
 def deviation_between(v1, v2):
     """
@@ -281,12 +291,13 @@ def deviation_between(v1, v2):
     if norm1 == 0 or norm2 == 0:
         return 0
     # Replace acos-based angle with atan2 for signed result (1 line change)
-    angle = math.atan2(v1[0]*v2[1] - v1[1]*v2[0], dot)
+    angle = math.atan2(v1[0] * v2[1] - v1[1] * v2[0], dot)
     degrees = math.degrees(angle)
     if degrees > 0:
         return 180 - degrees
     else:
         return -180 - math.degrees(angle)
+
 
 def perform_walks(
     graph,
@@ -296,9 +307,9 @@ def perform_walks(
     max_distance=200000,
     traversed_edges=set(),
     complete_traversed_edges=[],
-    min_angle=110,
+    min_angle=130,
 ):
-    def get_straightest_edge(node, prev_node, visited, sign):
+    def get_straightest_edge(node, prev_node, visited, sign, recursion_depth=0):
         neighbors = [
             n
             for n in graph.neighbors(node)
@@ -322,21 +333,33 @@ def perform_walks(
             # plt.show()
             # plt.clf()
             angle = angle_between(v1, v2)
-            deviation = deviation_between(v1,v2)
+            deviation = deviation_between(v1, v2)
             if angle > min_angle and (not sign or deviation * sign > 0):
-                candidates.append((n, deviation, angle))
+                if not recursion_depth or (
+                    recursion_depth
+                    and get_straightest_edge(
+                        n, node, visited, sign, recursion_depth - 1
+                    )[0]
+                    is not None
+                ):
+                    candidates.append((n, deviation, angle))
 
         if not candidates:
             return None, None, None
 
-        # Choose the neighbor with the largest angle
-        argmax = candidates.index(max(candidates, key=lambda x: x[2]))
+        # Choose the neighbor with the largest angle or the largest score
+        if not np.random.randint(4):
+            argmax = candidates.index(
+                max(candidates, key=lambda x: graph.nodes[x[0]].get("score"))
+            )
+        else:
+            argmax = candidates.index(max(candidates, key=lambda x: x[2]))
         return candidates[argmax]
 
     walks = []
-
+    three_count = defaultdict(lambda: 0)
     i = 0
-    timeout = 100
+    timeout = 500
     while i < num_walks and timeout > 0:
         if len(complete_traversed_edges) < i + 1:
             complete_traversed_edges.append(set())
@@ -351,7 +374,9 @@ def perform_walks(
         reverse_attempted = 0
 
         while current_distance < max_distance:
-            next_node, deviation, angle = get_straightest_edge(walk[-1], prev_node, set(walk), requested_sign)
+            next_node, deviation, angle = get_straightest_edge(
+                walk[-1], prev_node, set(walk), requested_sign, recursion_depth=1
+            )
 
             if next_node is None and (reverse_attempted or len(walk) < 2):
                 break
@@ -374,8 +399,8 @@ def perform_walks(
             walk.append(next_node)
             walk_reverse = [next_node] + walk_reverse
             total_turn += deviation
-            #print(deviation, total_turn)
-            if abs(total_turn) > 100:
+            # print(deviation, total_turn)
+            if abs(total_turn) > 80:
                 requested_sign = -1 * np.sign(total_turn)
             elif abs(total_turn) < 40:
                 requested_sign = 0
@@ -385,17 +410,22 @@ def perform_walks(
 
         if current_distance > min_distance:
             walks.append(walk)
-            traversed_edges = set.union(traversed_edges, curr_traversed_edges)
-            complete_traversed_edges[i] = curr_traversed_edges
+            for j in curr_traversed_edges:
+                three_count[j] += 1
+                if three_count[j] >= 3:
+                    traversed_edges = set.union(traversed_edges, set(j))
+                    complete_traversed_edges[i] = set.union(complete_traversed_edges[i], set(j))
+            # traversed_edges = set.union(traversed_edges, curr_traversed_edges)
+            # complete_traversed_edges[i] = curr_traversed_edges
             i += 1
         else:
-            print(f"FAIL {100-timeout}", end="\r", flush=True)
+            # print(f"FAIL {100-timeout}", end="\r", flush=True)
             timeout -= 1
 
     return walks, traversed_edges, complete_traversed_edges
 
 
-def score_node(node, positions, kde, radius=2000):
+def score_node(node, positions, kde, radius=1000):
     node_pos = np.array(positions[node]).reshape(1, -1)
     # Sample points in a circle around the node
     angles = np.linspace(0, 2 * np.pi, 16, endpoint=False)
@@ -405,7 +435,7 @@ def score_node(node, positions, kde, radius=2000):
     return np.mean(np.exp(log_dens)) * 1e10
 
 
-def score_walk_by_kde(walk, positions, kde, radius=2000):
+def score_walk_by_kde(walk, positions, kde, radius=1000):
     """
     Scores a walk by summing the KDE density within a given radius of each node in the walk.
 
@@ -476,7 +506,7 @@ def replace_lowest_scoring_walk(
     complete_traversed_edges,
     min_distance=0,
     max_distance=200000,
-    radius=2000,
+    radius=1000,
 ):
     """
     Removes the walk with the lowest KDE score from the list and adds a new walk using perform_walks.
@@ -567,7 +597,7 @@ def save_graph_to_geojson(graph, positions, out_path):
 
 
 def save_lines_to_geojson(
-    lines, graph, positions, kde, out_path, node_station_status=None
+    lines, graph, positions, kde, out_path, node_station_status=None, groups=None
 ):
     """
     Save the transit lines to a GeoJSON file, including KDE value at each vertex.
@@ -607,6 +637,9 @@ def save_lines_to_geojson(
             if line[i] in positions and line[i + 1] in positions
         ]
         is_station = None
+        group = idx
+        if groups:
+            group = groups[idx]
         if node_station_status is not None:
             is_station = [
                 bool(node_station_status.get(n, True)) for n in line if n in positions
@@ -617,6 +650,7 @@ def save_lines_to_geojson(
             "line_id": idx,
             "kde_values": kde_values,
             "segment_lengths": segment_lengths,
+            "group": group
         }
         if is_station is not None:
             feature["is_station"] = is_station
@@ -649,7 +683,7 @@ def load_lines_from_geojson(path):
     return lines, positions
 
 
-def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
+def mark_station_nodes(walks, graph, positions, min_station_dist=1000, groups=None):
     """
     Mark nodes as stations or non-stations based on:
     - Terminal stations (endpoints of a line) are always stations.
@@ -660,18 +694,21 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
     from collections import defaultdict
 
     station_nodes = set()
-    node_line_count = defaultdict(int)
+    node_line_count = defaultdict(lambda: set())
     # Count how many lines each node appears in
-    for walk in walks:
+    for i, walk in enumerate(walks):
         for node in walk:
-            node_line_count[node] += 1
+            if groups:
+                node_line_count[node].add(groups[i])
+            else:
+                node_line_count[node].add(i)
     # Mark terminals and transfers as stations
     for walk in walks:
         n = len(walk)
         for i, node in enumerate(walk):
             if i == 0 or i == n - 1:
                 station_nodes.add(node)
-            elif node_line_count[node] > 1:
+            elif len(node_line_count[node]) > 1:
                 station_nodes.add(node)
     node_station_status = {}
     for a, walk in enumerate(walks):
@@ -679,28 +716,66 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
         prev_station_node = None
         prev_node = None
         for i, node in enumerate(walk):
-            #if a == 10 and i > 0:
-            #        print(a, i, haversine(positions[walk[i]], positions[walk[i-1]]))
             if node in station_nodes:
                 node_station_status[node] = True
                 prev_station_node = node
             else:
-                c=2
+                c = 2
                 is_station = True
                 curr_prev_node = prev_node
                 curr_node = node
                 total_distance = 0
                 while curr_node != prev_station_node:
                     if curr_prev_node in graph[curr_node]:
-                        total_distance += graph[curr_node][curr_prev_node].get("weight", None)
+                        total_distance += graph[curr_node][curr_prev_node].get(
+                            "weight", None
+                        )
                     elif curr_node in graph[curr_prev_node]:
-                        total_distance += graph[curr_prev_node][curr_node].get("weight", None)
+                        total_distance += graph[curr_prev_node][curr_node].get(
+                            "weight", None
+                        )
                     else:
-                        #print(" - ", c, haversine(positions[curr_node], positions[curr_prev_node]))
-                        total_distance += haversine(positions[curr_node], positions[curr_prev_node])
+                        # print(" - ", c, haversine(positions[curr_node], positions[curr_prev_node]))
+                        total_distance += haversine(
+                            positions[curr_node], positions[curr_prev_node]
+                        )
                     curr_node = curr_prev_node
-                    curr_prev_node = walk[i-c]
-                    c+=1
+                    curr_prev_node = walk[i - c]
+                    c += 1
+                if total_distance < min_station_dist:
+                    is_station = False
+                node_station_status[node] = is_station
+                if is_station:
+                    prev_station_node = node
+            prev_node = node
+        walk.reverse()
+        for i, node in enumerate(walk):
+            if node in station_nodes:
+                node_station_status[node] = True
+                prev_station_node = node
+            else:
+                c = 2
+                is_station = True
+                curr_prev_node = prev_node
+                curr_node = node
+                total_distance = 0
+                while curr_node != prev_station_node:
+                    if curr_prev_node in graph[curr_node]:
+                        total_distance += graph[curr_node][curr_prev_node].get(
+                            "weight", None
+                        )
+                    elif curr_node in graph[curr_prev_node]:
+                        total_distance += graph[curr_prev_node][curr_node].get(
+                            "weight", None
+                        )
+                    else:
+                        # print(" - ", c, haversine(positions[curr_node], positions[curr_prev_node]))
+                        total_distance += haversine(
+                            positions[curr_node], positions[curr_prev_node]
+                        )
+                    curr_node = curr_prev_node
+                    curr_prev_node = walk[i - c]
+                    c += 1
                 if total_distance < min_station_dist:
                     is_station = False
                 node_station_status[node] = is_station
@@ -708,3 +783,80 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000):
                     prev_station_node = node
             prev_node = node
     return node_station_status
+
+
+def group_assigner(lines, graph, new_positions=None, threshold=0.4):
+    """
+    Computes the pairwise similarity between lines.
+    Similarity is defined as the total length of the line segments shared by the lines divided by the total length of the first line.
+    Args:
+        lines (list of list of node ids): Each line is a list of node ids.
+        graph (networkx.Graph): The graph containing the nodes and edges, with edge weights as segment lengths.
+        new_positions: (unused, for compatibility)
+    Returns:
+        similarity (np.ndarray): similarity[a, b] = total shared segment length between line a and line b divided by total length of line a
+    """
+    import numpy as np
+
+    n = len(lines)
+    similarity = np.zeros((n, n), dtype=float)
+    # Build a set of segments for each line (as frozenset of node pairs, order-insensitive)
+    line_segments = []
+    line_lengths = []
+    for line in lines:
+        segments = set()
+        total_length = 0.0
+        for i in range(len(line) - 1):
+            a, b = line[i], line[i + 1]
+            seg = frozenset((a, b))
+            segments.add(seg)
+            # Get segment length from graph edge weights
+            if graph.has_edge(a, b):
+                total_length += graph[a][b].get("weight", 1.0)
+            elif graph.has_edge(b, a):
+                total_length += graph[b][a].get("weight", 1.0)
+            else:
+                total_length += 1.0  # fallback if no edge
+        line_segments.append(segments)
+        line_lengths.append(total_length)
+    # Compute pairwise similarity (not symmetric)
+    for i in range(n):
+        for j in range(n):
+            if i == j or line_lengths[i] == 0:
+                similarity[i, j] = 1.0 if i == j else 0.0
+                continue
+            shared = line_segments[i] & line_segments[j]
+            shared_length = 0.0
+            for seg in shared:
+                a, b = tuple(seg)
+                if graph.has_edge(a, b):
+                    shared_length += graph[a][b].get("weight", 1.0)
+                elif graph.has_edge(b, a):
+                    shared_length += graph[b][a].get("weight", 1.0)
+                else:
+                    shared_length += 1.0
+            similarity[i, j] = shared_length / line_lengths[i]
+    # Build similarity groups (greedily, with transitivity)
+    n = similarity.shape[0]
+    visited = set()
+    groups = []
+    for i in range(n):
+        if i in visited:
+            continue
+        group = set([i])
+        stack = [i]
+        while stack:
+            a = stack.pop()
+            for b in range(n):
+                if b not in group and (
+                    similarity[a, b] >= threshold or similarity[b, a] >= threshold
+                ):
+                    group.add(b)
+                    stack.append(b)
+        visited.update(group)
+        groups.append(group)
+    groupss = [None] * len(lines)
+    for a, group in enumerate(groups):
+        for i in group:
+            groupss[i] = a
+    return groupss

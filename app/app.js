@@ -55,10 +55,42 @@ fetchGeoJSON('../data/output/network.geojson').then(data => {
 // Add support for toggling between lines_naive and lines_genetic
 let currentLinesSource = 'lines_naive'; // 'lines_naive', or 'lines_genetic'
 
+function getOffsetLatLngs(latlngA, latlngB, offsetMeters, map, direction = 1) {
+    // Compute perpendicular offset for a segment from latlngA to latlngB
+    // direction: +1 for right, -1 for left (relative to A->B)
+    const toRad = deg => deg * Math.PI / 180;
+    const toDeg = rad => rad * 180 / Math.PI;
+    // Convert to radians
+    const lat1 = toRad(latlngA[0]), lng1 = toRad(latlngA[1]);
+    const lat2 = toRad(latlngB[0]), lng2 = toRad(latlngB[1]);
+    // Calculate bearing
+    const dLng = lng2 - lng1;
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+    const bearing = Math.atan2(y, x);
+    // Perpendicular bearing (right-hand rule)
+    const perpBearing = bearing + direction * Math.PI / 2;
+    // Offset both points
+    function offsetPoint(lat, lng, bearing, distMeters) {
+        const R = 6378137; // Earth radius in meters
+        const newLat = Math.asin(Math.sin(lat) * Math.cos(distMeters / R) + Math.cos(lat) * Math.sin(distMeters / R) * Math.cos(bearing));
+        const newLng = lng + Math.atan2(Math.sin(bearing) * Math.sin(distMeters / R) * Math.cos(lat), Math.cos(distMeters / R) - Math.sin(lat) * Math.sin(newLat));
+        return [toDeg(newLat), toDeg(newLng)];
+    }
+    // Scale offset by zoom: higher zoom = smaller offset in meters
+    let zoom = map.getZoom ? map.getZoom() : 10;
+    // More aggressive scaling: increase exponent
+    const scale = Math.pow(2, 1 - zoom);
+    const scaledOffset = offsetMeters * scale;
+    return [
+        offsetPoint(lat1, lng1, perpBearing, scaledOffset),
+        offsetPoint(lat2, lng2, perpBearing, scaledOffset)
+    ];
+}
+
 function loadLinesGeoJSON(source) {
     // Remove existing line layers and markers
     for (var member in vertexLineMap) delete vertexLineMap[member];
-    console.log("YO");
     currentLinesLayerNames.forEach(name => {
         if (layers[name]) map.removeLayer(layers[name]);
         if (lineMarkers[name]) lineMarkers[name].forEach(m => map.removeLayer(m));
@@ -94,37 +126,96 @@ function loadLinesGeoJSON(source) {
                 }
             });
         });
-        // Draw lines with tooltips
+        // Build segment-to-lines map (direction-agnostic)
+        const segmentToLines = {};
+        (data.features || []).forEach((feature) => {
+            const coords = feature.geometry.coordinates;
+            const lineId = feature.properties.line_id;
+            for (let i = 0; i < coords.length - 1; ++i) {
+                const a = coords[i], b = coords[i + 1];
+                // Use sorted key so [A,B] and [B,A] are the same segment
+                const key = [a.join(','), b.join(',')].sort().join('|');
+                if (!segmentToLines[key]) segmentToLines[key] = new Set();
+                segmentToLines[key].add(lineId);
+            }
+        });
+        // Draw lines as offset polylines for overlapping segments
         (data.features || []).forEach((feature, i) => {
-            const color = COLORS[i % COLORS.length];
-            const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
-            const numStations = feature.geometry.coordinates.length;
+            const group = feature.properties.group;
+            const color = COLORS[group % COLORS.length];
             const name = `Line ${feature.properties.line_id ?? i}`;
             lineMarkers[name] = [];
-            const lineLayer = L.geoJSON(feature, {
-                style: { color, weight: 4, opacity: 1 },
-                onEachFeature: (feat, layer) => {
-                    const totalDistance = (feat.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
-                    const numStations = feat.geometry.coordinates.length;
-                    layer.bindTooltip(
-                        `Line ${feat.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStations}`,
-                        {
-                            sticky: true,
-                            direction: 'top',
-                            offset: [0, -10]
-                        }
-                    );
-                }
-            });
-            layers[name] = lineLayer;
-            lineLayer.addTo(map);
-            lineLayerNames.push(name);
-
-            lineMarkers[name] = [];
-
-            currentLinesLayerNames.push(name);
-            // Add vertex markers, popups, and circles
             const coords = feature.geometry.coordinates;
+            let polylines = [];
+            for (let j = 0; j < coords.length - 1; ++j) {
+                const a = coords[j], b = coords[j + 1];
+                // Use direction-agnostic key
+                const key = [a.join(','), b.join(',')].sort().join('|');
+                // Only consider lines in different groups for separation
+                const allLines = Array.from(segmentToLines[key] || []);
+                // Get group for each line on this segment
+                const groupMap = {};
+                (data.features || []).forEach(f => {
+                    if (allLines.includes(f.properties.line_id)) {
+                        groupMap[f.properties.line_id] = f.properties.group;
+                    }
+                });
+                // Only offset between groups
+                // Get unique groups and their line_ids
+                const groupToLines = {};
+                allLines.forEach(lid => {
+                    const g = groupMap[lid];
+                    if (!groupToLines[g]) groupToLines[g] = [];
+                    groupToLines[g].push(lid);
+                });
+                // Sort groups by group id (for consistent order)
+                const groupIds = Object.keys(groupToLines).sort((a, b) => a - b);
+                // Find this line's group index
+                const myGroupIdx = groupIds.indexOf(String(group));
+                // Offset: only if there are multiple groups
+                let offset = 0;
+                if (groupIds.length > 1) {
+                    // Offset by group, not by line
+                    offset = (myGroupIdx - (groupIds.length - 1) / 2) * 600000;
+                }
+                const seg = getOffsetLatLngs([a[1], a[0]], [b[1], b[0]], offset, map, 1);
+                if (seg && seg[0] && seg[1]) {
+                    polylines.push(seg);
+                }
+            }
+            // Only draw if we have valid segments
+            if (polylines.length > 0 && polylines[0][0] && polylines[0][1]) {
+                let latlngs = [polylines[0][0]];
+                for (let j = 0; j < polylines.length; ++j) {
+                    if (polylines[j][1]) latlngs.push(polylines[j][1]);
+                }
+                const poly = L.polyline(latlngs, { color, weight: 4, opacity: 1 }).addTo(map);
+                layers[name] = poly;
+                lineLayerNames.push(name);
+                // Restore tooltip and click/hover interactivity
+                const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
+                const numStations = coords.length;
+                poly.bindTooltip(
+                    `Line ${feature.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStations}`,
+                    {
+                        sticky: true,
+                        direction: 'top',
+                        offset: [0, -10]
+                    }
+                );
+                poly.on('mouseover', function (e) {
+                    this.setStyle({ weight: 7, opacity: 1 });
+                });
+                poly.on('mouseout', function (e) {
+                    this.setStyle({ weight: 4, opacity: 1 });
+                });
+                poly.on('click', function (e) {
+                    // Optionally, you can add custom click behavior here
+                    // For now, just open the tooltip
+                    this.openTooltip();
+                });
+            }
+            // Add vertex markers, popups, and circles
             const kdeValues = feature.properties.kde_values || [];
             coords.forEach((coord, idx) => {
                 const key = roundCoord(coord).join(',');
@@ -134,7 +225,7 @@ function loadLinesGeoJSON(source) {
                 if (!isStation) return; // Only add marker if node is a station
                 const icon = L.icon({
                     iconUrl: 'assets/wmata.svg',
-                    iconSize: [10, 10],
+                    iconSize: [16, 16],
                     iconAnchor: [7, 7],
                     popupAnchor: [0, -7]
                 });
@@ -154,6 +245,7 @@ function loadLinesGeoJSON(source) {
                 catchmentCircles.push(circle);
                 // Do not add to map by default
             });
+            currentLinesLayerNames.push(name);
         });
         // After all lines are loaded, sort lineLayerNames numerically
         currentLinesLayerNames.sort((a, b) => {
@@ -379,7 +471,7 @@ function createToggle(name, checked) {
     checkbox.onchange = () => {
         if (checkbox.checked) {
             layers[name].addTo(map);
-            if (lineMarkers[name]) lineMarkers[name].forEach(m => m.addTo(map));
+            if (lineMarkers[name]) lineMarkers[name].forEach(m => map.addLayer(m));
         } else {
             map.removeLayer(layers[name]);
             if (lineMarkers[name]) lineMarkers[name].forEach(m => map.removeLayer(m));
@@ -533,13 +625,54 @@ function attachRouteFinderToMarker(marker, lat, lng) {
             routeHighlightLayer = L.polyline(routeCoords, { color: 'blue', weight: 8, opacity: 0.7 }).addTo(map);
             // Show description with lines used and total distance
             let lineSequence = [];
+            let currentLine = null;
             for (let i = 0; i < path.length - 1; ++i) {
                 const a = path[i], b = path[i + 1];
                 const pairKey = [a, b].sort().join('|');
                 const lines = lineIdByNodePair[pairKey] ? Array.from(lineIdByNodePair[pairKey]) : [];
-                if (lines.length > 0) {
-                    if (lineSequence.length === 0 || lineSequence[lineSequence.length - 1] !== lines[0]) {
-                        lineSequence.push(lines[0]);
+                if (lines.length === 0) continue;
+                if (lineSequence.length === 0) {
+                    // Start with the line that can be continued the longest
+                    let bestLine = null, bestRun = -1;
+                    for (const candidate of lines) {
+                        let run = 1;
+                        for (let j = i + 1; j < path.length - 1; ++j) {
+                            const nextA = path[j], nextB = path[j + 1];
+                            const nextKey = [nextA, nextB].sort().join('|');
+                            const nextLines = lineIdByNodePair[nextKey] ? Array.from(lineIdByNodePair[nextKey]) : [];
+                            if (!nextLines.includes(candidate)) break;
+                            run++;
+                        }
+                        if (run > bestRun || (run === bestRun && (bestLine === null || candidate < bestLine))) {
+                            bestRun = run;
+                            bestLine = candidate;
+                        }
+                    }
+                    currentLine = bestLine;
+                    lineSequence.push(currentLine);
+                } else {
+                    // Continue on the current line if possible
+                    if (lines.includes(currentLine)) {
+                        continue;
+                    } else {
+                        // Choose the line that can be continued the longest from here
+                        let bestLine = null, bestRun = -1;
+                        for (const candidate of lines) {
+                            let run = 1;
+                            for (let j = i + 1; j < path.length - 1; ++j) {
+                                const nextA = path[j], nextB = path[j + 1];
+                                const nextKey = [nextA, nextB].sort().join('|');
+                                const nextLines = lineIdByNodePair[nextKey] ? Array.from(lineIdByNodePair[nextKey]) : [];
+                                if (!nextLines.includes(candidate)) break;
+                                run++;
+                            }
+                            if (run > bestRun || (run === bestRun && (bestLine === null || candidate < bestLine))) {
+                                bestRun = run;
+                                bestLine = candidate;
+                            }
+                        }
+                        currentLine = bestLine;
+                        lineSequence.push(currentLine);
                     }
                 }
             }
@@ -559,7 +692,6 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                 const coord = linesGraph.nodes[node];
                 if (!coord) continue;
                 const key = roundCoord(coord).join(',');
-                //console.log(key, stationStatusByCoord[key]);
                 if (stationStatusByCoord[key] === undefined || stationStatusByCoord[key]) stationCount++;
             }
             // For travel time, replace (path.length - 2) * 0.4 with (stationCount - 2) * 0.4
@@ -761,13 +893,54 @@ map.on('click', function (e) {
         routeHighlightLayer = L.polyline(routeCoords, { color: 'blue', weight: 8, opacity: 0.7 }).addTo(map);
         // Show description with lines used and total distance
         let lineSequence = [];
+        let currentLine = null;
         for (let i = 0; i < path.length - 1; ++i) {
             const a = path[i], b = path[i + 1];
             const pairKey = [a, b].sort().join('|');
             const lines = lineIdByNodePair[pairKey] ? Array.from(lineIdByNodePair[pairKey]) : [];
-            if (lines.length > 0) {
-                if (lineSequence.length === 0 || lineSequence[lineSequence.length - 1] !== lines[0]) {
-                    lineSequence.push(lines[0]);
+            if (lines.length === 0) continue;
+            if (lineSequence.length === 0) {
+                // Start with the line that can be continued the longest
+                let bestLine = null, bestRun = -1;
+                for (const candidate of lines) {
+                    let run = 1;
+                    for (let j = i + 1; j < path.length - 1; ++j) {
+                        const nextA = path[j], nextB = path[j + 1];
+                        const nextKey = [nextA, nextB].sort().join('|');
+                        const nextLines = lineIdByNodePair[nextKey] ? Array.from(lineIdByNodePair[nextKey]) : [];
+                        if (!nextLines.includes(candidate)) break;
+                        run++;
+                    }
+                    if (run > bestRun || (run === bestRun && (bestLine === null || candidate < bestLine))) {
+                        bestRun = run;
+                        bestLine = candidate;
+                    }
+                }
+                currentLine = bestLine;
+                lineSequence.push(currentLine);
+            } else {
+                // Continue on the current line if possible
+                if (lines.includes(currentLine)) {
+                    continue;
+                } else {
+                    // Choose the line that can be continued the longest from here
+                    let bestLine = null, bestRun = -1;
+                    for (const candidate of lines) {
+                        let run = 1;
+                        for (let j = i + 1; j < path.length - 1; ++j) {
+                            const nextA = path[j], nextB = path[j + 1];
+                            const nextKey = [nextA, nextB].sort().join('|');
+                            const nextLines = lineIdByNodePair[nextKey] ? Array.from(lineIdByNodePair[nextKey]) : [];
+                            if (!nextLines.includes(candidate)) break;
+                            run++;
+                        }
+                        if (run > bestRun || (run === bestRun && (bestLine === null || candidate < bestLine))) {
+                            bestRun = run;
+                            bestLine = candidate;
+                        }
+                    }
+                    currentLine = bestLine;
+                    lineSequence.push(currentLine);
                 }
             }
         }
@@ -807,7 +980,6 @@ map.on('click', function (e) {
         let walkDistanceStrStart = '';
         let walkDistanceStrEnd = '';
         let walkTimeStr = '';
-        console.log(clickEndDist);
         if (clickStartDist > 0) {
             walkDistanceStrStart = `${(clickStartDist / 1000).toFixed(2)} km`;
             walkSummaryStart = `Walk (${walkDistanceStrStart}) → `;
@@ -860,4 +1032,9 @@ map.on('click', function (e) {
         renderLayerToggles();
         // Do not clearRouteSelectionVisuals here, keep destination visuals
     }
+});
+
+// Redraw lines on zoom to keep offsets visually appropriate
+map.on('zoomend', () => {
+    loadLinesGeoJSON(currentLinesSource);
 });
