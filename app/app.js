@@ -76,8 +76,8 @@ fetchGeoJSON('../data/output/network.geojson').then(data => {
     layerOrder.push('Network');
 });
 
-// Add support for toggling between lines_naive and lines_genetic
-let currentLinesSource = 'lines_naive'; // 'lines_naive', or 'lines_genetic'
+// Add support for toggling
+let currentLinesSource = 'lines_iterative';
 
 function getOffsetLatLngs(latlngA, latlngB, offsetMeters, map, direction = 1) {
     // Compute perpendicular offset for a segment from latlngA to latlngB
@@ -340,13 +340,13 @@ function loadLinesGeoJSON(source) {
     });
 }
 
-// Add UI for toggling between lines_naive and lines_genetic
+// Add UI for toggling
 const linesSourceSelect = document.createElement('select');
 linesSourceSelect.id = 'lines-source-select';
-['lines_naive', 'lines_genetic'].forEach(src => {
+['lines_iterative', 'lines_genetic', 'lines_naive'].forEach(src => {
     const opt = document.createElement('option');
     opt.value = src;
-    opt.textContent = src.replace('lines', 'Lines').replace('_', ' ').replace('naive', 'Naive').replace('genetic', 'Genetic');
+    opt.textContent = src.replace('lines', '').replace('_', ' ').replace('naive', 'Naive Algorithm').replace('iterative', 'Naive Algorithm with Iterative Improvement').replace('genetic', 'Genetic Algorithm');
     linesSourceSelect.appendChild(opt);
 });
 linesSourceSelect.onchange = function () {
@@ -628,10 +628,6 @@ const routeFinderBtn = document.getElementById('route-finder-btn');
 const routeFinderStatus = document.getElementById('route-finder-status');
 const routeFinderResult = document.getElementById('route-finder-result');
 
-// Load lines graph for routing
-fetchGeoJSON('../data/output/lines_naive.geojson').then(data => {
-
-});
 
 // Helper: get currently visible line IDs
 function getVisibleLineIds() {
