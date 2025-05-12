@@ -853,8 +853,7 @@ function attachRouteFinderToMarker(marker, lat, lng, stationName) {
                         }
                     }
                 }
-                if (!stationName) stationName = 'Unnamed station';
-                intermediateStations.push(stationName);
+                if (stationName) intermediateStations.push(stationName);
             }
             routeFinderResult.innerHTML =
                 `<b>Route:</b> ${walkSummaryStart}${lineSequence.map(l => `Line ${l}`).join(' → ')}${walkDistanceStrEnd}` +
