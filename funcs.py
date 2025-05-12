@@ -1,7 +1,7 @@
 import numpy as np
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import box
+from shapely.geometry import box, MultiPolygon, Polygon, Point, MultiPoint, LineString
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KernelDensity
 import contextily as cx
@@ -308,6 +308,8 @@ def perform_walks(
     traversed_edges=set(),
     complete_traversed_edges=[],
     min_angle=130,
+    total_turn_high=80,
+    total_turn_reset=30,
 ):
     def get_straightest_edge(node, prev_node, visited, sign, recursion_depth=0):
         neighbors = [
@@ -348,7 +350,7 @@ def perform_walks(
             return None, None, None
 
         # Choose the neighbor with the largest angle or the largest score
-        if not np.random.randint(4):
+        if not np.random.randint(3):
             argmax = candidates.index(
                 max(candidates, key=lambda x: graph.nodes[x[0]].get("score"))
             )
@@ -363,7 +365,7 @@ def perform_walks(
     while i < num_walks and timeout > 0:
         if len(complete_traversed_edges) < i + 1:
             complete_traversed_edges.append(set())
-        start_node = random.choice(list(graph.nodes()))
+        start_node = random.choice(list(set(graph.nodes()) - set(i[0] for i in traversed_edges)))
         walk = [start_node]
         walk_reverse = [start_node]
         prev_node = None
@@ -385,9 +387,9 @@ def perform_walks(
                 walk = walk_reverse
                 prev_node = walk[-2]
                 total_turn *= -1
-                if abs(total_turn) > 100:
+                if abs(total_turn) > total_turn_high:
                     requested_sign = -1 * np.sign(total_turn)
-                elif abs(total_turn) < 40:
+                elif abs(total_turn) < total_turn_reset:
                     requested_sign = 0
                 continue
 
@@ -400,9 +402,9 @@ def perform_walks(
             walk_reverse = [next_node] + walk_reverse
             total_turn += deviation
             # print(deviation, total_turn)
-            if abs(total_turn) > 80:
+            if abs(total_turn) > total_turn_high:
                 requested_sign = -1 * np.sign(total_turn)
-            elif abs(total_turn) < 40:
+            elif abs(total_turn) < total_turn_reset:
                 requested_sign = 0
             prev_node = walk[-2]
 
@@ -413,15 +415,14 @@ def perform_walks(
             for j in curr_traversed_edges:
                 three_count[j] += 1
                 if three_count[j] >= 3:
-                    traversed_edges = set.union(traversed_edges, set(j))
-                    complete_traversed_edges[i] = set.union(complete_traversed_edges[i], set(j))
+                    traversed_edges.add(j)
+                    complete_traversed_edges[i].add(j)
             # traversed_edges = set.union(traversed_edges, curr_traversed_edges)
             # complete_traversed_edges[i] = curr_traversed_edges
             i += 1
         else:
             # print(f"FAIL {100-timeout}", end="\r", flush=True)
             timeout -= 1
-
     return walks, traversed_edges, complete_traversed_edges
 
 
@@ -860,3 +861,30 @@ def group_assigner(lines, graph, new_positions=None, threshold=0.4):
         for i in group:
             groupss[i] = a
     return groupss
+
+def filter_points_in_polygons(points_gdf, polygons):
+    """
+    Filter a GeoDataFrame of Points, returning only those within any of the given polygons or multipolygons.
+
+    Args:
+        points_gdf (gpd.GeoDataFrame): GeoDataFrame with Point geometries.
+        polygons (list of shapely.geometry.Polygon or MultiPolygon): List of polygons or multipolygons.
+
+    Returns:
+        gpd.GeoDataFrame: Filtered GeoDataFrame with points inside any polygon or multipolygon.
+    """
+    # Flatten all MultiPolygons into individual Polygons
+    from shapely.geometry import MultiPolygon, Polygon
+
+    flat_polys = []
+    for poly in polygons:
+        if isinstance(poly, MultiPolygon):
+            flat_polys.extend(list(poly.geoms))
+        elif isinstance(poly, Polygon):
+            flat_polys.append(poly)
+        # Ignore other geometry types
+
+    # Combine all polygons into a single MultiPolygon for efficient masking
+    multi = MultiPolygon(flat_polys)
+    mask = points_gdf.geometry.apply(lambda pt: pt.within(multi))
+    return points_gdf[mask].copy()

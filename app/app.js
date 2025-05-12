@@ -7,10 +7,34 @@ const currentLinesLayerNames = [];
 const catchmentCircles = [];
 // Color palette for lines
 const COLORS = [
-    '#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00',
-    '#ffff33', '#a65628', '#f781bf', '#999999', '#1b9e77',
-    '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02',
-    '#a6761d', '#666666', '#b15928', '#b2df8a', '#fb9a99'
+  "#e6194b", // red
+  "#3cb44b", // green
+  "#ffe119", // yellow
+  "#4363d8", // blue
+  "#f58231", // orange
+  "#911eb4", // purple
+  "#46f0f0", // cyan
+  "#f032e6", // magenta
+  "#bcf60c", // lime
+  "#fabebe", // pink
+  "#008080", // teal
+  "#e6beff", // lavender
+  "#9a6324", // brown
+  "#800000", // maroon
+  "#aaffc3", // mint
+  "#808000", // olive
+  "#ffd8b1", // peach
+  "#000075", // navy
+  "#808080", // gray
+  "#000000", // black
+  "#a9a9a9", // dark gray
+  "#ff4500", // orange red
+  "#2e8b57", // sea green
+  "#1e90ff", // dodger blue
+  "#ff69b4", // hot pink
+  "#7cfc00", // lawn green
+  "#8a2be2", // blue violet
+  "#00ced1"  // dark turquoise
 ];
 const map = L.map('map').setView([38.9, -77.05], 10);
 var Stadia_AlidadeSmooth = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.{ext}', {
@@ -91,13 +115,15 @@ function getOffsetLatLngs(latlngA, latlngB, offsetMeters, map, direction = 1) {
 function loadLinesGeoJSON(source) {
     // Remove existing line layers and markers
     for (var member in vertexLineMap) delete vertexLineMap[member];
+    // Remove all old catchment circles from the map before clearing
+    catchmentCircles.forEach(circle => { if (map.hasLayer(circle)) map.removeLayer(circle); });
     currentLinesLayerNames.forEach(name => {
         if (layers[name]) map.removeLayer(layers[name]);
         if (lineMarkers[name]) lineMarkers[name].forEach(m => map.removeLayer(m));
         delete layers[name];
         delete lineMarkers[name];
-        catchmentCircles.length = 0;
     });
+    catchmentCircles.length = 0;
     currentLinesLayerNames.length = 0;
     // Load the selected lines file
     // Load lines and add tooltips, vertex markers, and circles
@@ -139,6 +165,7 @@ function loadLinesGeoJSON(source) {
                 segmentToLines[key].add(lineId);
             }
         });
+        const numStationsArray = new Array(data.features.length);
         // Draw lines as offset polylines for overlapping segments
         (data.features || []).forEach((feature, i) => {
             const group = feature.properties.group;
@@ -147,6 +174,7 @@ function loadLinesGeoJSON(source) {
             lineMarkers[name] = [];
             const coords = feature.geometry.coordinates;
             let polylines = [];
+            const groupMap = {};
             for (let j = 0; j < coords.length - 1; ++j) {
                 const a = coords[j], b = coords[j + 1];
                 // Use direction-agnostic key
@@ -154,7 +182,7 @@ function loadLinesGeoJSON(source) {
                 // Only consider lines in different groups for separation
                 const allLines = Array.from(segmentToLines[key] || []);
                 // Get group for each line on this segment
-                const groupMap = {};
+
                 (data.features || []).forEach(f => {
                     if (allLines.includes(f.properties.line_id)) {
                         groupMap[f.properties.line_id] = f.properties.group;
@@ -192,11 +220,16 @@ function loadLinesGeoJSON(source) {
                 const poly = L.polyline(latlngs, { color, weight: 4, opacity: 1 }).addTo(map);
                 layers[name] = poly;
                 lineLayerNames.push(name);
+                // Store original data for offset recalculation
+                poly._originalCoords = coords;
+                poly._group = group;
+                poly._segmentToLines = segmentToLines;
+                poly._groupMap = groupMap;
                 // Restore tooltip and click/hover interactivity
                 const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
-                const numStations = coords.length;
+                numStationsArray[i] = feature.properties.is_station.filter(Boolean).length;
                 poly.bindTooltip(
-                    `Line ${feature.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStations}`,
+                    `Line ${feature.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStationsArray[i]}`,
                     {
                         sticky: true,
                         direction: 'top',
@@ -205,14 +238,24 @@ function loadLinesGeoJSON(source) {
                 );
                 poly.on('mouseover', function (e) {
                     this.setStyle({ weight: 7, opacity: 1 });
+                    var list = document.querySelector("#map > div.leaflet-pane.leaflet-map-pane > div.leaflet-pane.leaflet-overlay-pane > svg > g").getElementsByClassName("leaflet-interactive");
+                    for (let item of list) {
+                        if (item.getAttribute("stroke") != this.options.color)
+                            item.setAttribute("opacity", 0.2);
+                    }
                 });
                 poly.on('mouseout', function (e) {
                     this.setStyle({ weight: 4, opacity: 1 });
+                    var list = document.querySelector("#map > div.leaflet-pane.leaflet-map-pane > div.leaflet-pane.leaflet-overlay-pane > svg > g").getElementsByClassName("leaflet-interactive");
+                    for (let item of list) {
+                        if (item.getAttribute("stroke") != this.options.color)
+                            item.setAttribute("opacity", 1);
+                    }
                 });
                 poly.on('click', function (e) {
                     // Optionally, you can add custom click behavior here
                     // For now, just open the tooltip
-                    this.openTooltip();
+                    //this.openTooltip();
                 });
             }
             // Add vertex markers, popups, and circles
@@ -227,7 +270,7 @@ function loadLinesGeoJSON(source) {
                     iconUrl: 'assets/wmata.svg',
                     iconSize: [16, 16],
                     iconAnchor: [7, 7],
-                    popupAnchor: [0, -7]
+                    popupAnchor: [0, -7],
                 });
                 const marker = L.marker([coord[1], coord[0]], { icon }).addTo(map);
                 attachRouteFinderToMarker(marker, coord[1], coord[0]);
@@ -284,6 +327,12 @@ function loadLinesGeoJSON(source) {
                 lineIdByNodePair[pairKey].add(lineId);
             }
         });
+        // --- Ensure catchment circles are shown if toggle is checked ---
+        if (catchmentToggle.checked) {
+            catchmentCircles.forEach(circle => {
+                if (!map.hasLayer(circle)) map.addLayer(circle);
+            });
+        }
     });
 }
 
@@ -319,12 +368,12 @@ function loadRealWorldNetwork() {
     // List of real-world network GeoJSONs and color logic
     const files = [
         {
-            url: '../data/real_transit/DC_Streetcar_Routes.geojson',
+            url: '../data/real_transit/dcs/DC_Streetcar_Routes.geojson',
             color: 'brown',
             name: 'DC Streetcar'
         },
         {
-            url: '../data/real_transit/Maryland_Transit_-_MARC_Train_Lines.geojson',
+            url: '../data/real_transit/marc/Maryland_Transit_-_MARC_Train_Lines.geojson',
             colorFn: function (props) {
                 if (props.Rail_Name && props.Rail_Name.includes('Brunswick')) return '#EFAD1D';
                 if (props.Rail_Name && props.Rail_Name.includes('Camden')) return '#F15828';
@@ -333,7 +382,7 @@ function loadRealWorldNetwork() {
             name: 'MARC Train'
         },
         {
-            url: '../data/real_transit/Metro_Lines_Regional.geojson',
+            url: '../data/real_transit/wmata/Metro_Lines_Regional.geojson',
             colorFn: function (props) {
                 if (props.NAME && props.NAME.includes('orange')) return '#F9921D';
                 if (props.NAME && props.NAME.includes('silver')) return '#A1A3A1';
@@ -345,7 +394,7 @@ function loadRealWorldNetwork() {
             name: 'WMATA Metro'
         },
         {
-            url: '../data/real_transit/Virginia_Railway_Express_Routes.geojson',
+            url: '../data/real_transit/vre/Virginia_Railway_Express_Routes.geojson',
             colorFn: function (props) {
                 if (props.RAILWAY_NM && props.RAILWAY_NM.includes('Manassas')) return '#156DB4';
                 return '#DD3534';
@@ -353,7 +402,7 @@ function loadRealWorldNetwork() {
             name: 'VRE'
         },
         {
-            url: '../data/real_transit/PurpleLineAlignment.geojson',
+            url: '../data/real_transit/pl/PurpleLineAlignment.geojson',
             color: '#793390',
             name: 'Purple Line'
         }
@@ -406,7 +455,7 @@ function createRealWorldNetworkToggle() {
     }
 }
 // Add toggle all lines checkbox
-function createToggleAllLinesCheckbox() {
+function createToggleAllLinesCheckbox(parent) {
     let label = document.getElementById('toggle-all-lines-label');
     if (!label) {
         label = document.createElement('label');
@@ -430,7 +479,7 @@ function createToggleAllLinesCheckbox() {
         };
         label.appendChild(checkbox);
         label.appendChild(document.createTextNode(' Toggle all lines'));
-        layerToggles.insertBefore(label, layerToggles.firstChild);
+        (parent || layerToggles).appendChild(label);
         checkbox.checked = true;
     } else {
         // Update checked state
@@ -441,27 +490,84 @@ function createToggleAllLinesCheckbox() {
                 return cb && cb.checked;
             });
         }
+        (parent || layerToggles).appendChild(label);
     }
 }
 
 function renderLayerToggles() {
+    // Clear toggles
     while (layerToggles.firstChild) layerToggles.removeChild(layerToggles.firstChild);
-    createToggleAllLinesCheckbox();
-    // Render all line toggles in order (use currentLinesLayerNames for currently loaded network)
-    currentLinesLayerNames.forEach(n => createToggle(n, map.hasLayer(layers[n])));
-    // Restore Network toggle if present
-    if (layers['Network']) createToggle('Network', map.hasLayer(layers['Network']));
-    // Add catchment area toggle at the end
-    layerToggles.appendChild(catchmentToggleLabel);
-    createRealWorldNetworkToggle();
-    // Disable toggles for all states except 'idle'
-    const toggles = layerToggles.querySelectorAll('input[type="checkbox"]');
-    toggles.forEach(cb => {
-        cb.disabled = (routeFinderState !== 'idle');
+
+    // --- Group lines by group number ---
+    // Build a map: groupNum -> [lineName, ...]
+    const groupToLines = {};
+    currentLinesLayerNames.forEach(name => {
+        const poly = layers[name];
+        if (!poly || poly._group === undefined) return;
+        const group = poly._group;
+        if (!groupToLines[group]) groupToLines[group] = [];
+        groupToLines[group].push(name);
     });
+    // Sort group numbers
+    const groupNums = Object.keys(groupToLines).map(Number).sort((a, b) => a - b);
+    // --- Create columns: at most 4 lines per column (including group headers) ---
+    const columns = [];
+    let col = document.createElement('div');
+    col.className = 'layer-toggle-col';
+    let linesInCol = 0;
+    for (let i = 0; i < groupNums.length; ++i) {
+        const groupNum = groupNums[i];
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'layer-toggle-group-header';
+        groupHeader.textContent = `Group ${groupNum}`;
+        const groupLines = groupToLines[groupNum];
+        // If adding this group would exceed 4 lines in the column, start a new column
+        if (linesInCol + 1 + groupLines.length > 4) {
+            columns.push(col);
+            col = document.createElement('div');
+            col.className = 'layer-toggle-col';
+            linesInCol = 0;
+        }
+        col.appendChild(groupHeader);
+        linesInCol += 1;
+        groupLines.forEach(n => {
+            createToggle(n, map.hasLayer(layers[n]), col);
+            linesInCol += 1;
+        });
+    }
+    if (col.childNodes.length > 0) columns.push(col);
+    // Add all group columns to the toggles container
+    columns.forEach(col => layerToggles.appendChild(col));
+
+    // --- Rightmost column for global toggles and dropdown ---
+    const rightCol = document.createElement('div');
+    rightCol.className = 'layer-toggle-col rightmost';
+    // Toggle all lines
+    createToggleAllLinesCheckbox(rightCol);
+    // Network toggle
+    if (layers['Network']) createToggle('Network', map.hasLayer(layers['Network']), rightCol);
+    // Catchment area toggle
+    rightCol.appendChild(catchmentToggleLabel);
+    // Real-world network toggle
+    createRealWorldNetworkToggle(rightCol);
+    layerToggles.appendChild(rightCol);
+
+    // --- Style columns with flex ---
+    layerToggles.style.display = 'flex';
+    layerToggles.style.flexDirection = 'row';
+    layerToggles.style.gap = '24px';
+
+    // --- Ensure dropdown is always in controls div ---
+    const controlsDiv = document.getElementById('controls');
+    const dropdown = document.getElementById('lines-source-select');
+    if (dropdown) {
+        // Remove from any parent and append to controls
+        if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
+        controlsDiv.appendChild(dropdown);
+    }
 }
 
-function createToggle(name, checked) {
+function createToggle(name, checked, parent) {
     const id = `layer-toggle-${name.replace(/\s/g, '-')}`;
     const label = document.createElement('label');
     const checkbox = document.createElement('input');
@@ -479,7 +585,7 @@ function createToggle(name, checked) {
     };
     label.appendChild(checkbox);
     label.appendChild(document.createTextNode(' ' + name));
-    layerToggles.appendChild(label);
+    (parent || layerToggles).appendChild(label);
 }
 
 // Create Station catchment area toggle (define before any function uses it)
@@ -540,7 +646,7 @@ routeFinderBtn.onclick = () => {
         if (routeHighlightLayer) { map.removeLayer(routeHighlightLayer); routeHighlightLayer = null; }
         routeNodeMarkers.forEach(m => map.removeLayer(m));
         routeNodeMarkers = [];
-        routeFinderStatus.textContent = 'Click the starting station.';
+        routeFinderStatus.textContent = 'Click the starting location.';
         routeFinderResult.textContent = '';
         routeFinderBtn.textContent = 'clear';
         routeFinderBtn.disabled = true; // Disable clear until origin is selected
@@ -557,7 +663,7 @@ routeFinderBtn.onclick = () => {
     if (routeHighlightLayer) { map.removeLayer(routeHighlightLayer); routeHighlightLayer = null; }
     routeNodeMarkers.forEach(m => map.removeLayer(m));
     routeNodeMarkers = [];
-    routeFinderStatus.textContent = 'Click the starting station.';
+    routeFinderStatus.textContent = 'Click the starting location.';
     routeFinderResult.textContent = '';
     routeFinderBtn.textContent = 'clear';
     routeFinderBtn.disabled = true; // Disable clear until origin is selected
@@ -588,7 +694,7 @@ function attachRouteFinderToMarker(marker, lat, lng) {
             routeStart = findNearestLineNodeVisible(lat, lng);
             if (!routeStart) return;
             routeFinderState = 'selectingEnd';
-            routeFinderStatus.textContent = 'Click the destination station.';
+            routeFinderStatus.textContent = 'Click the destination.';
             // Highlight start marker
             const m = L.circleMarker([lat, lng], { radius: 12, color: 'green', fillOpacity: 0.7 }).addTo(map);
             routeNodeMarkers.push(m);
@@ -843,7 +949,7 @@ map.on('click', function (e) {
         // Save as start
         routeStart = nearestKey;
         routeFinderState = 'selectingEnd';
-        routeFinderStatus.textContent = 'Click the destination location.';
+        routeFinderStatus.textContent = 'Click the destination.';
         const m = L.circleMarker([nearestCoord[0], nearestCoord[1]], { radius: 12, color: 'green', fillOpacity: 0.7 }).addTo(map);
         routeNodeMarkers.push(m);
         routeFinderBtn.textContent = 'clear';
@@ -1034,7 +1140,84 @@ map.on('click', function (e) {
     }
 });
 
+// --- Update line offsets on zoom without reloading everything ---
+function updateLineOffsetsOnZoom() {
+    // For each visible line, recalculate its offset geometry and update the polyline
+    currentLinesLayerNames.forEach(name => {
+        const poly = layers[name];
+        if (!poly) return;
+        // Find the corresponding feature (line) for this polyline
+        // We'll need to store the original coordinates and group info for each line
+        // Store these as a property on the polyline when first created
+        if (!poly._originalCoords || !poly._group) return;
+        const coords = poly._originalCoords;
+        const group = poly._group;
+        // Recompute offset segments
+        let polylines = [];
+        for (let j = 0; j < coords.length - 1; ++j) {
+            const a = coords[j], b = coords[j + 1];
+            // Use direction-agnostic key
+            const key = [a.join(','), b.join(',')].sort().join('|');
+            // Only consider lines in different groups for separation
+            const allLines = poly._segmentToLines[key] ? Array.from(poly._segmentToLines[key]) : [];
+            // Get group for each line on this segment
+            const groupMap = poly._groupMap || {};
+            // Only offset between groups
+            // Get unique groups and their line_ids
+            const groupToLines = {};
+            allLines.forEach(lid => {
+                const g = groupMap[lid];
+                if (!groupToLines[g]) groupToLines[g] = [];
+                groupToLines[g].push(lid);
+            });
+            // Sort groups by group id (for consistent order)
+            const groupIds = Object.keys(groupToLines).sort((a, b) => a - b);
+            // Find this line's group index
+            const myGroupIdx = groupIds.indexOf(String(group));
+            // Offset: only if there are multiple groups
+            let offset = 0;
+            if (groupIds.length > 1) {
+                // Offset by group, not by line
+                offset = (myGroupIdx - (groupIds.length - 1) / 2) * 600000;
+            }
+            const seg = getOffsetLatLngs([a[1], a[0]], [b[1], b[0]], offset, map, 1);
+            if (seg && seg[0] && seg[1]) {
+                polylines.push(seg);
+            }
+        }
+        // Only update if we have valid segments
+        if (polylines.length > 0 && polylines[0][0] && polylines[0][1]) {
+            let latlngs = [polylines[0][0]];
+            for (let j = 0; j < polylines.length; ++j) {
+                if (polylines[j][1]) latlngs.push(polylines[j][1]);
+            }
+            poly.setLatLngs(latlngs);
+        }
+    });
+}
+
+// --- Replace reload on zoom with offset update ---
+map.on('zoomend', () => {
+    updateLineOffsetsOnZoom();
+});
+
 // Redraw lines on zoom to keep offsets visually appropriate
 map.on('zoomend', () => {
-    loadLinesGeoJSON(currentLinesSource);
+    updateLineOffsetsOnZoom();
 });
+
+// Add minimal CSS for columns if not present
+(function ensureLayerToggleColCSS() {
+    if (!document.getElementById('layer-toggle-col-style')) {
+        const style = document.createElement('style');
+        style.id = 'layer-toggle-col-style';
+        style.textContent = `
+            #layer-toggles { display: flex; flex-direction: row; gap: 24px; flex-wrap: wrap; max-width: 100%; overflow-x: auto; box-sizing: border-box; }
+            .layer-toggle-col { display: flex; flex-direction: column; gap: 8px; min-width: 120px; max-width: 180px; }
+            .layer-toggle-group-header { font-weight: bold; margin-top: 8px; margin-bottom: 4px; }
+            .layer-toggle-col.rightmost { min-width: 180px; }
+            #controls { overflow-x: auto; overflow-y: visible; max-width: 100vw; box-sizing: border-box; }
+        `;
+        document.head.appendChild(style);
+    }
+})();
