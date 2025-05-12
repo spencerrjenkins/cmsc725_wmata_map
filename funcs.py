@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import KernelDensity
 import contextily as cx
 from pyproj import Transformer, Geod
+import geojson
 
 from matplotlib.patches import Circle
 import community
@@ -59,26 +60,92 @@ def reset_and_concat(*dfs):
     return pd.concat(dfs, ignore_index=True)
 
 
-def plot_kde_heatmap(df_points, bandwidth=2000, grid_size=70, cmap="Reds"):
+def plot_network(network, positions, bounds, labels=False, **kwargs):
+    wmata_df, pl_df, marc_df, vre_df, dcs_df = [gpd.GeoDataFrame()] * 5
+    ax = wmata_df.plot(
+        figsize=(8, 8), color=wmata_df.color, linestyle="dotted", linewidth=1
+    )
+    pl_df.plot(ax=ax, color=pl_df.color, linestyle="dotted", linewidth=1)
+    marc_df.plot(ax=ax, color=marc_df.color, linestyle="dotted", linewidth=1)
+    vre_df.plot(ax=ax, color=vre_df.color, linestyle="dotted", linewidth=1)
+    dcs_df.plot(ax=ax, color=dcs_df.color, linestyle="dotted", linewidth=1)
+    # nx.draw(network, positions, ax=ax, node_size=5, node_color="b", edge_color="black", **kwargs)
+    ax.set_axis_off()
+    if labels:
+        for node, (x, y) in positions.items():
+            label = str(node)
+            if True:
+                label += f"\n({round(x/1e6,3)},{round(y/1e6,3)})"
+            if (
+                node in network.nodes
+                and x > bounds[0]
+                and x < bounds[2]
+                and y > bounds[1]
+                and y < bounds[3]
+            ):
+                ax.text(
+                    x,
+                    y,
+                    label,
+                    fontsize=7,
+                    ha="center",
+                    va="center",
+                    color="darkred",
+                    zorder=10,
+                )
+
+    if labels:
+        for u, v, data in network.edges(data=True):
+            x1, y1 = positions[u]
+            x2, y2 = positions[v]
+            mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+            weight = data.get("weight", None)
+            if (
+                weight is not None
+                and mx > bounds[0]
+                and mx < bounds[2]
+                and my > bounds[1]
+                and my < bounds[3]
+            ):
+                ax.text(
+                    mx,
+                    my,
+                    f"{weight:.1f}",
+                    fontsize=7,
+                    color="green",
+                    ha="center",
+                    va="center",
+                    zorder=10,
+                )
+    ax.set_xlim([bounds[0], bounds[2]])
+    ax.set_ylim([bounds[1], bounds[3]])
+    cx.add_basemap(ax, source=cx.providers.CartoDB.Positron)
+    return ax
+
+
+def plot_kde_heatmap(df_points, bandwidth=2000, grid_size=70, cmap="Reds", plot=False):
     df_points_web = df_points  # .to_crs(epsg=3857)
     coords_web = np.vstack([df_points_web.geometry.x, df_points_web.geometry.y]).T
     kde = KernelDensity(bandwidth=bandwidth, kernel="gaussian")
     kde.fit(coords_web)
-    minx, miny, maxx, maxy = df_points_web.total_bounds
-    x_grid = np.linspace(minx, maxx, grid_size)
-    y_grid = np.linspace(miny, maxy, grid_size)
-    xx, yy = np.meshgrid(x_grid, y_grid)
-    grid_coords = np.vstack([xx.ravel(), yy.ravel()]).T
-    log_dens = kde.score_samples(grid_coords)
-    density = np.exp(log_dens).reshape(xx.shape)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.imshow(np.flipud(density), extent=[minx, maxx, miny, maxy], cmap=cmap, alpha=0.6)
-    # df_points_web.plot(ax=ax, color="blue", markersize=10, label="Data Points")
-    cx.add_basemap(ax, source=cx.providers.CartoDB.Positron)
-    plt.colorbar(ax.images[0], label="Density")
-    plt.title("Kernel Density Estimation (KDE) Heatmap")
-    plt.legend()
-    plt.show()
+    if plot:
+        minx, miny, maxx, maxy = df_points_web.total_bounds
+        x_grid = np.linspace(minx, maxx, grid_size)
+        y_grid = np.linspace(miny, maxy, grid_size)
+        xx, yy = np.meshgrid(x_grid, y_grid)
+        grid_coords = np.vstack([xx.ravel(), yy.ravel()]).T
+        log_dens = kde.score_samples(grid_coords)
+        density = np.exp(log_dens).reshape(xx.shape)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.imshow(
+            np.flipud(density), extent=[minx, maxx, miny, maxy], cmap=cmap, alpha=0.6
+        )
+        # df_points_web.plot(ax=ax, color="blue", markersize=10, label="Data Points")
+        cx.add_basemap(ax, source=cx.providers.CartoDB.Positron)
+        plt.colorbar(ax.images[0], label="Density")
+        plt.title("Kernel Density Estimation (KDE) Heatmap")
+        plt.legend()
+        plt.show()
     return kde
 
 
@@ -365,7 +432,9 @@ def perform_walks(
     while i < num_walks and timeout > 0:
         if len(complete_traversed_edges) < i + 1:
             complete_traversed_edges.append(set())
-        start_node = random.choice(list(set(graph.nodes()) - set(i[0] for i in traversed_edges)))
+        start_node = random.choice(
+            list(set(graph.nodes()) - set(i[0] for i in traversed_edges))
+        )
         walk = [start_node]
         walk_reverse = [start_node]
         prev_node = None
@@ -561,10 +630,6 @@ def save_graph_to_geojson(graph, positions, out_path):
     Nodes are saved as Point features, edges as LineString features.
     All coordinates are converted to EPSG:4326.
     """
-    from shapely.geometry import Point, LineString
-    import geopandas as gpd
-    import pandas as pd
-    from pyproj import Transformer
 
     # Assume input positions are in EPSG:3857 (Web Mercator) or another CRS
     # If you know the input CRS, set it here. For now, assume EPSG:3857
@@ -598,7 +663,7 @@ def save_graph_to_geojson(graph, positions, out_path):
 
 
 def save_lines_to_geojson(
-    lines, graph, positions, kde, out_path, node_station_status=None, groups=None
+    lines, graph, positions, kde, out_path, node_station_status=None, groups=None, names=defaultdict(lambda: "Unnamed station")
 ):
     """
     Save the transit lines to a GeoJSON file, including KDE value at each vertex.
@@ -607,11 +672,6 @@ def save_lines_to_geojson(
     Also saves a list of booleans 'is_station' for each node if node_station_status is provided.
     All coordinates are converted to EPSG:4326.
     """
-    from shapely.geometry import LineString
-    import geopandas as gpd
-    import pandas as pd
-    from pyproj import Transformer
-    import numpy as np
 
     transformer = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
 
@@ -645,13 +705,15 @@ def save_lines_to_geojson(
             is_station = [
                 bool(node_station_status.get(n, True)) for n in line if n in positions
             ]
+        name_list = [names[n] if is_station[i] else '' for i, n in enumerate(line)]
         feature = {
             "geometry": LineString(coords),
             "type": "line",
             "line_id": idx,
             "kde_values": kde_values,
             "segment_lengths": segment_lengths,
-            "group": group
+            "group": group,
+            "name_list": name_list,
         }
         if is_station is not None:
             feature["is_station"] = is_station
@@ -667,7 +729,6 @@ def load_lines_from_geojson(path):
         lines: list of lists of node coordinates (as tuples)
         positions: dict mapping node coordinate (tuple) to (x, y) coordinates
     """
-    import geojson
 
     with open(path, "r") as f:
         gj = geojson.load(f)
@@ -692,7 +753,6 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000, groups=No
     - Any other node is marked as a non-station if it is less than min_station_dist (meters) away from the previous STATION node in the walk.
     Returns: dict {node: True/False}
     """
-    from collections import defaultdict
 
     station_nodes = set()
     node_line_count = defaultdict(lambda: set())
@@ -797,7 +857,6 @@ def group_assigner(lines, graph, new_positions=None, threshold=0.4):
     Returns:
         similarity (np.ndarray): similarity[a, b] = total shared segment length between line a and line b divided by total length of line a
     """
-    import numpy as np
 
     n = len(lines)
     similarity = np.zeros((n, n), dtype=float)
@@ -862,6 +921,7 @@ def group_assigner(lines, graph, new_positions=None, threshold=0.4):
             groupss[i] = a
     return groupss
 
+
 def filter_points_in_polygons(points_gdf, polygons):
     """
     Filter a GeoDataFrame of Points, returning only those within any of the given polygons or multipolygons.
@@ -874,7 +934,6 @@ def filter_points_in_polygons(points_gdf, polygons):
         gpd.GeoDataFrame: Filtered GeoDataFrame with points inside any polygon or multipolygon.
     """
     # Flatten all MultiPolygons into individual Polygons
-    from shapely.geometry import MultiPolygon, Polygon
 
     flat_polys = []
     for poly in polygons:
@@ -888,3 +947,40 @@ def filter_points_in_polygons(points_gdf, polygons):
     multi = MultiPolygon(flat_polys)
     mask = points_gdf.geometry.apply(lambda pt: pt.within(multi))
     return points_gdf[mask].copy()
+
+
+def assign_station_neighborhoods(positions, status, neighborhoods_gdf):
+    """
+    Assigns a neighborhood name to each station node based on the closest neighborhood point.
+
+    Args:
+        lines (list of list): Each line is a list of node IDs.
+        positions (dict): Mapping from node ID to (x, y) coordinates (projected CRS, e.g., EPSG:3857).
+        status (dict): Mapping from node ID to True/False (True if station).
+        neighborhoods_gdf (GeoDataFrame): Must have columns 'NAME' and 'geometry' (Point).
+
+    Returns:
+        dict: {station_node: neighborhood_name}
+    """
+
+    # Build a list of all station nodes
+    station_nodes = [n for n, is_station in status.items() if is_station]
+    # Get neighborhood point coordinates and names
+    neighborhood_coords = np.array(
+        [(geom.x, geom.y) for geom in neighborhoods_gdf.geometry]
+    )
+    neighborhood_names = neighborhoods_gdf["NAME"].tolist()
+    neighborhood_names_count = {a: 0 for a in neighborhood_names}
+
+    station_to_neighborhood = defaultdict(lambda: "Unnamed station")
+    for node in station_nodes:
+        if node not in positions:
+            continue
+        x, y = positions[node]
+        dists = np.hypot(neighborhood_coords[:, 0] - x, neighborhood_coords[:, 1] - y)
+        min_idx = int(np.argmin(dists))
+        base_name = neighborhood_names[min_idx]
+        neighborhood_names_count[base_name] += 1
+        name_id = neighborhood_names_count[base_name]
+        station_to_neighborhood[node] = f"{base_name.split('-')[1 if len(base_name.split("-")) > 1 else 0]} {name_id if name_id > 1 else ""}".strip()
+    return station_to_neighborhood

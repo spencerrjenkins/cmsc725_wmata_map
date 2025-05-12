@@ -7,34 +7,34 @@ const currentLinesLayerNames = [];
 const catchmentCircles = [];
 // Color palette for lines
 const COLORS = [
-  "#e6194b", // red
-  "#3cb44b", // green
-  "#ffe119", // yellow
-  "#4363d8", // blue
-  "#f58231", // orange
-  "#911eb4", // purple
-  "#46f0f0", // cyan
-  "#f032e6", // magenta
-  "#bcf60c", // lime
-  "#fabebe", // pink
-  "#008080", // teal
-  "#e6beff", // lavender
-  "#9a6324", // brown
-  "#800000", // maroon
-  "#aaffc3", // mint
-  "#808000", // olive
-  "#ffd8b1", // peach
-  "#000075", // navy
-  "#808080", // gray
-  "#000000", // black
-  "#a9a9a9", // dark gray
-  "#ff4500", // orange red
-  "#2e8b57", // sea green
-  "#1e90ff", // dodger blue
-  "#ff69b4", // hot pink
-  "#7cfc00", // lawn green
-  "#8a2be2", // blue violet
-  "#00ced1"  // dark turquoise
+    "#e6194b", // red
+    "#3cb44b", // green
+    "#ffe119", // yellow
+    "#4363d8", // blue
+    "#f58231", // orange
+    "#911eb4", // purple
+    "#46f0f0", // cyan
+    "#f032e6", // magenta
+    "#bcf60c", // lime
+    "#fabebe", // pink
+    "#008080", // teal
+    "#e6beff", // lavender
+    "#9a6324", // brown
+    "#800000", // maroon
+    "#aaffc3", // mint
+    "#808000", // olive
+    "#ffd8b1", // peach
+    "#000075", // navy
+    "#808080", // gray
+    "#000000", // black
+    "#a9a9a9", // dark gray
+    "#ff4500", // orange red
+    "#2e8b57", // sea green
+    "#1e90ff", // dodger blue
+    "#ff69b4", // hot pink
+    "#7cfc00", // lawn green
+    "#8a2be2", // blue violet
+    "#00ced1"  // dark turquoise
 ];
 const map = L.map('map').setView([38.9, -77.05], 10);
 var Stadia_AlidadeSmooth = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.{ext}', {
@@ -228,8 +228,11 @@ function loadLinesGeoJSON(source) {
                 // Restore tooltip and click/hover interactivity
                 const totalDistance = (feature.properties.segment_lengths || []).reduce((a, b) => a + b, 0);
                 numStationsArray[i] = feature.properties.is_station.filter(Boolean).length;
+                const nameList = feature.properties.name_list || [];
+                const firstStationName = nameList.find(n => n) || 'Unnamed station';
+                const lastStationName = [...nameList].reverse().find(n => n) || 'Unnamed station';
                 poly.bindTooltip(
-                    `Line ${feature.properties.line_id}<br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStationsArray[i]}`,
+                    `<b>Line ${feature.properties.line_id} (${firstStationName.replace(/ \d+$/, '')} - ${lastStationName.replace(/ \d+$/, '')})</b><br>Total distance: ${(totalDistance / 1000).toFixed(2)} km<br>Stations: ${numStationsArray[i]}`,
                     {
                         sticky: true,
                         direction: 'top',
@@ -265,6 +268,7 @@ function loadLinesGeoJSON(source) {
                 const kde = vertexKDEMap[key];
                 const linesHere = vertexLineMap[key] || [];
                 const isStation = feature.properties.is_station ? feature.properties.is_station[idx] : true;
+                const stationName = feature.properties.name_list && feature.properties.name_list[idx] ? feature.properties.name_list[idx] : 'Unnamed station';
                 if (!isStation) return; // Only add marker if node is a station
                 const icon = L.icon({
                     iconUrl: 'assets/wmata.svg',
@@ -273,8 +277,8 @@ function loadLinesGeoJSON(source) {
                     popupAnchor: [0, -7],
                 });
                 const marker = L.marker([coord[1], coord[0]], { icon }).addTo(map);
-                attachRouteFinderToMarker(marker, coord[1], coord[0]);
-                const tooltip = `<b>Station</b><br>KDE Score: ${kde?.toFixed(2) ?? 'N/A'}<br>Lines: ${linesHere.map(l => `Line ${l}`).join(', ')}`;
+                attachRouteFinderToMarker(marker, coord[1], coord[0], stationName);
+                const tooltip = `<b>${stationName}</b><br>KDE Score: ${kde?.toFixed(2) ?? 'N/A'}<br>Lines: ${linesHere.map(l => `Line ${l}`).join(', ')}`;
                 marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -10], sticky: false });
                 lineMarkers[name].push(marker);
                 // Circle of 700m
@@ -688,13 +692,15 @@ function findNearestLineNodeVisible(lat, lng) {
 }
 
 // Attach click handlers to station markers after they are created
-function attachRouteFinderToMarker(marker, lat, lng) {
+function attachRouteFinderToMarker(marker, lat, lng, stationName) {
     marker.on('click', (e) => {
         if (routeFinderState === 'selectingStart') {
             routeStart = findNearestLineNodeVisible(lat, lng);
             if (!routeStart) return;
             routeFinderState = 'selectingEnd';
-            routeFinderStatus.textContent = 'Click the destination.';
+            // Save station name for origin
+            routeFinderBtn.dataset.originStation = stationName || '';
+            routeFinderStatus.innerHTML = `<b>Origin:</b> ${stationName || ''}<br>Click the destination.`;
             // Highlight start marker
             const m = L.circleMarker([lat, lng], { radius: 12, color: 'green', fillOpacity: 0.7 }).addTo(map);
             routeNodeMarkers.push(m);
@@ -705,6 +711,8 @@ function attachRouteFinderToMarker(marker, lat, lng) {
             routeEnd = findNearestLineNodeVisible(lat, lng);
             if (!routeEnd || routeEnd === routeStart) return;
             routeFinderState = 'idle';
+            // Save station name for destination
+            routeFinderBtn.dataset.destinationStation = stationName || '';
             // Highlight end marker
             const m = L.circleMarker([lat, lng], { radius: 12, color: 'red', fillOpacity: 0.7 }).addTo(map);
             routeNodeMarkers.push(m);
@@ -782,7 +790,7 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                     }
                 }
             }
-            routeFinderStatus.textContent = 'Route found!';
+            routeFinderStatus.innerHTML = `<b>Origin:</b> ${routeFinderBtn.dataset.originStation || ''}<br><b>Destination:</b> ${routeFinderBtn.dataset.destinationStation || ''}`;
             // Calculate travel time: 80 km/h + 0.4 min per station + 6 min per transfer
             const speed_kmh = 80;
             const totalDistanceKm = totalRouteDistance / 1000;
@@ -827,6 +835,31 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                 const walkTime = Math.ceil(walkDistance / 100); // 100 meters per minute
                 walkTimeStr = `${walkTime} min`;
             }
+            // Build list of intermediate station names
+            let intermediateStations = [];
+            for (let i = 1; i < path.length - 1; ++i) {
+                const node = path[i];
+                const coord = linesGraph.nodes[node];
+                if (!coord) continue;
+                const key = roundCoord(coord).join(',');
+                // Try to get the station name from the marker or from a global mapping
+                let stationName = '';
+                // Try to find a marker at this location
+                for (const markers of Object.values(lineMarkers)) {
+                    for (const m of markers) {
+                        if (m.getLatLng().lat === coord[0] && m.getLatLng().lng === coord[1]) {
+                            // Parse name from tooltip HTML
+                            const tt = m.getTooltip();
+                            if (tt && tt._content) {
+                                const match = tt._content.match(/<b>(.*?)<\/b>/);
+                                if (match) stationName = match[1];
+                            }
+                        }
+                    }
+                }
+                if (!stationName) stationName = 'Unnamed station';
+                intermediateStations.push(stationName);
+            }
             routeFinderResult.innerHTML =
                 `<b>Route:</b> ${walkSummaryStart}${lineSequence.map(l => `Line ${l}`).join(' → ')}${walkDistanceStrEnd}` +
                 `<br><b>Stations:</b> ${stationCount - 2}` +
@@ -835,6 +868,21 @@ function attachRouteFinderToMarker(marker, lat, lng) {
                 `<br><b>Estimated travel time:</b> ${travelTimeStr}` +
                 (walkDistance > 0 ? `<br><b>Total walking distance:</b> ${((clickStartDist + clickEndDist) / 1000).toFixed(2)} km` : '') +
                 (walkDistance > 0 ? `<br><b>Total walking time:</b> ${walkTimeStr}` : '');
+            // Add show/hide button for intermediate stations
+            let intermediateListId = 'intermediate-stations-list';
+            let showHideBtnId = 'show-hide-intermediate-btn';
+            routeFinderResult.innerHTML += `<br><button id="${showHideBtnId}">Show intermediate stations</button><div id="${intermediateListId}" style="display:none;"></div>`;
+            document.getElementById(showHideBtnId).onclick = function () {
+                const div = document.getElementById(intermediateListId);
+                if (div.style.display === 'none') {
+                    div.style.display = 'block';
+                    div.innerHTML = '<ol>' + intermediateStations.map(s => `<li>${s}</li>`).join('') + '</ol>';
+                    this.textContent = 'Hide intermediate stations';
+                } else {
+                    div.style.display = 'none';
+                    this.textContent = 'Show intermediate stations';
+                }
+            };
             // Add Exit Route Finder button
             let exitBtn = document.getElementById('route-finder-exit-btn');
             if (!exitBtn) {
@@ -1050,7 +1098,7 @@ map.on('click', function (e) {
                 }
             }
         }
-        routeFinderStatus.textContent = 'Route found!';
+        routeFinderStatus.innerHTML = `<b>Origin:</b> ${routeFinderBtn.dataset.originStation || ''}<br><b>Destination:</b> ${routeFinderBtn.dataset.destinationStation || ''}`;
         // Calculate travel time: 80 km/h + 0.4 min per station + 6 min per transfer
         // Add clickStartDist and clickEndDist to totalRouteDistance
         const speed_kmh = 80;
@@ -1102,6 +1150,31 @@ map.on('click', function (e) {
                 walkTimeStr = `${hours} hr${hours > 1 ? 's' : ''}` + (minutes > 0 ? ` ${minutes} min` : '');
             }
         }
+        // Build list of intermediate station names
+        let intermediateStations = [];
+        for (let i = 1; i < path.length - 1; ++i) {
+            const node = path[i];
+            const coord = linesGraph.nodes[node];
+            if (!coord) continue;
+            const key = roundCoord(coord).join(',');
+            // Try to get the station name from the marker or from a global mapping
+            let stationName = '';
+            // Try to find a marker at this location
+            for (const markers of Object.values(lineMarkers)) {
+                for (const m of markers) {
+                    if (m.getLatLng().lat === coord[0] && m.getLatLng().lng === coord[1]) {
+                        // Parse name from tooltip HTML
+                        const tt = m.getTooltip();
+                        if (tt && tt._content) {
+                            const match = tt._content.match(/<b>(.*?)<\/b>/);
+                            if (match) stationName = match[1];
+                        }
+                    }
+                }
+            }
+            if (!stationName) stationName = 'Unnamed station';
+            intermediateStations.push(stationName);
+        }
         routeFinderResult.innerHTML =
             `<b>Route:</b> ${walkSummaryStart}${lineSequence.map(l => `Line ${l}`).join(' → ')}${walkDistanceStrEnd}` +
             `<br><b>Stations:</b> ${stationCount - 2}` +
@@ -1110,6 +1183,21 @@ map.on('click', function (e) {
             `<br><b>Estimated travel time:</b> ${travelTimeStr}` +
             (walkDistance > 0 ? `<br><b>Total walking distance:</b> ${((clickStartDist + clickEndDist) / 1000).toFixed(2)} km` : '') +
             (walkDistance > 0 ? `<br><b>Total walking time:</b> ${walkTimeStr}` : '');
+        // Add show/hide button for intermediate stations
+        let intermediateListId = 'intermediate-stations-list';
+        let showHideBtnId = 'show-hide-intermediate-btn';
+        routeFinderResult.innerHTML += `<br><button id="${showHideBtnId}">Show intermediate stations</button><div id="${intermediateListId}" style="display:none;"></div>`;
+        document.getElementById(showHideBtnId).onclick = function () {
+            const div = document.getElementById(intermediateListId);
+            if (div.style.display === 'none') {
+                div.style.display = 'block';
+                div.innerHTML = '<ol>' + intermediateStations.map(s => `<li>${s}</li>`).join('') + '</ol>';
+                this.textContent = 'Hide intermediate stations';
+            } else {
+                div.style.display = 'none';
+                this.textContent = 'Show intermediate stations';
+            }
+        };
         // Add Exit Route Finder button
         let exitBtn = document.getElementById('route-finder-exit-btn');
         if (!exitBtn) {
