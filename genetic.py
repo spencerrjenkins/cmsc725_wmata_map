@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from copy import deepcopy
 from funcs import perform_walks, score_walk_by_kde
 import multiprocessing
+import pickle
 
 
 def fitness(
@@ -194,7 +195,7 @@ def genetic_algorithm(
 
     for gen in range(generations):
         # Parallel fitness evaluation
-        print(f"generation {gen}...", end="\r",flush=True)
+        print(f"generation {gen}...", end="\r", flush=True)
         with multiprocessing.Pool() as pool:
             fitness_args = [
                 (route_set, positions, kde, radius, node_types, population)
@@ -268,25 +269,31 @@ def crossover(parent1, parent2):
 
 # --- Add a main function for standalone execution ---
 if __name__ == "__main__":
-    import pickle
-
-    with open("pickle/graph.pkl", "rb") as f:   
+    with open("pickle/graph.pkl", "rb") as f:
         graph = pickle.load(f)
-    with open("pickle/positions.pkl", "rb") as f:   
+    with open("pickle/positions.pkl", "rb") as f:
         positions = pickle.load(f)
-    with open("pickle/kde.pkl", "rb") as f:   
+    with open("pickle/kde.pkl", "rb") as f:
         kde = pickle.load(f)
-    with open("pickle/ex_map_dc.pkl", "rb") as f:   
+    with open("pickle/ex_map_dc.pkl", "rb") as f:
         ex_map = pickle.load(f)
     best_routes, best_score, log = genetic_algorithm(
-    graph, positions, kde, num_routes=20,population_size=100,generations=30,
-    min_distance=35000, max_distance=50000, radius=500, mutation_rate=0.1,
-    core_bounds=ex_map
+        graph,
+        positions,
+        kde,
+        num_routes=20,
+        population_size=100,
+        generations=30,
+        min_distance=45000,
+        max_distance=80000,
+        radius=500,
+        mutation_rate=0.1,
+        core_bounds=ex_map,
     )
     print("Done!")
-    with open("pickle/best_routes.pkl", "wb") as f:   
+    with open("pickle/best_routes.pkl", "wb") as f:
         pickle.dump(best_routes, f)
-    with open("pickle/best_score.pkl", "wb") as f:   
+    with open("pickle/best_score.pkl", "wb") as f:
         pickle.dump(best_score, f)
-    with open("pickle/log.pkl", "wb") as f:   
+    with open("pickle/log.pkl", "wb") as f:
         pickle.dump(log, f)
