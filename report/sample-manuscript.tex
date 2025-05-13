@@ -294,6 +294,53 @@ Evaluating candidate networks requires a set of benchmarks that reflect both pra
 \subsection{Summary of Workflow and Code Integration}
 The overall workflow is orchestrated through a combination of Jupyter notebooks (\texttt{eda.ipynb}), Python scripts (\texttt{funcs.py}, \texttt{genetic.py}), and supporting modules (\texttt{api.py}). Data acquisition and preprocessing are handled in the early stages of the notebook, with intermediate results saved for reproducibility. Network construction and optimization are performed using modular functions, allowing for flexible experimentation with different parameters and algorithms. The codebase is designed to be modular and extensible, facilitating future adaptations to other regions or the incorporation of additional data sources and evaluation metrics. By saving intermediate files and parameter settings, we ensure that the entire process is transparent and reproducible, supporting both academic rigor and practical application.
 
+
+
+First, I determine which counties to consider. Table 1 shows the counties and county-equivalents I consider in this program, along with their 2020 census population, population density, and FIPS code. I use these FIPS codes to filter all the geospatial data I use in this project.
+
+I load data for the selected regions from multiple sources. First, I obtained census block population data from the US Census Bureau. I obtain the "transit potential" for each block by dividing the population for the block by the total area of the block. I then find the most important locations for transit by using a 2-D spatial tree algorithm. At each step, I find the census block with the highest transit potential, divide the map into four, and then perform the same for each child, until I have reached a recursive depth of 8. I take the points returned by this recursive routine as the locations with the highest need for transit based on their population. 
+
+I augment this data by adding points for the location of points which are important to be served by transit. The selection I have incorporated reflects the availability of data from each source. Table 3 shows all the data I have collected.
+
+DC: Grocery stores, hospitals, libraries, museums, pharmacies, points of interest, primary care facilities, K-12 schools, recreational facilities, places of worship, higher education institutions, and WIC facilities. 
+
+Maryland: Arts, Assisted Living Facilities, Federal Military facilities, Higher Education Institutions, Governmental Support Facilities, Hospitals, Business Incentive zones, libraries, main streets, places on the NHRP, state facilities, state military facilities, and K-12 schools.
+
+Virginia: Places of worship, state facilities, DMV locations, Hospitals, Landmarks, Libraries, Higher education institutions, and K-12 schools.
+
+I further augment this data by including the points of existing transit stops. In line with my project motivation, this is not because I want a network that reproduces the shortcomings of the real-world network, but because the publicly-available data does not reflect all points which transit would be important to serve, and the location of transit stops are meant to approximate areas which otherwise have high transit importance. I consider all bus and rail stops in the counties listed.
+
+With the data collected from these sources, I construct a kernel density estimate over the points selected. I use this KDE to provide scores for spatial queries, which is used at several stages. Figure _ shows the KDE map for the area.
+
+I then construct a Gabriel graph using the points. A Gabriel graph is a triangulation that is somewhat sparser than the Delaunay triangulation. I then contract this graph by condensing Louvain communities by a user-defined threshold. I used this graph as the overall search space for the network. That is to say, the network is constructed from the nodes and edges of the graph. 
+
+I then use one of three network construction algorithms.
+
+First, the naive method involves making highly constrained walks through the graph. Each walk starts from a random, previously unexplored node and follows the available edge leading to the greatest score. Then, for each subsequent step, the walk chooses an available edge according to the following distribution. It has a 75% chance of choosing the step that has the straightest angle from the previous step, and a 25% chance of choosing the step that has the highest KDE score. To further restrict the selection of edges, only edges that form at least a 130-degree angle from the previous edge can be chosen, and if the overall trajectory of the route deviates from the first edge by more than 80 degrees, the walk must only proceed down edges that bring the walk angle back. If the walk reaches a node with no options, the walk terminates here and attempts to continue the walk from the original endpoint, building in the opposite direction. When the walk terminates from the opposite direction, the walk is only kept if it is within a specified length range between 45km and 100km. 
+
+Edges are available if they are unexplored or have been explored up to 3 times. This reflects the largely interlined nature of the WMATA metro, in which the blue, orange, and silver lines share the majority of their route along the same alignment. 
+
+The second line construction method is an iterative improvement method. In this method, a set of random walks is initialized. The walks are scored according to the sum of the KDE scores for all nodes, indicating the transit utility of the line, and the lowest-scoring walk is replaced with a higher-scoring walk. This replacement process is repeated for up to 100 times.
+
+The third line construction method is a genetic algorithm...
+
+The following post-processing is applied to all methods:
+
+Each walk is considered to be one line of the metro network. Lines are classified into groups based on the amount of their alignment they share. A pairwise distance matrix between the lines is calculated, and any sets of lines that share similarity beyond a given threshold, with transitivity, are classified into groups. 
+
+Because the edges of the contracted Gabriel graph range in length from hundreds of meters to several kilometers, considering every node as a station is inappropriate. Instead, station locations are determined as a subset of the nodes as follows: All terminal nodes are automatically stations, as are any transfer stations between lines of different groups. Then, a forward and backward pass through the line remove stations that are closer than a threshold distance of 1km from their neighbors. This creates a network in which each station has a catchment area of approximately 500 meters, or within up to 15 minutes of walking distance.
+
+I assign a name to each station by finding the neighborhood it most directly serves. I use neighborhood boundary data provided by Arlington County and by the State of Maryland, and neighborhood centroid data provided by the District of Columbia. I take the centroids of the former two and concatenate them with the latter. To determine the name of each station, I conduct a spatial query on all of the neighborhood boundaries and find the closest centroid. If multiple stations are assigned to the same neighborhood, I add a different number to each station name. 
+
+Analysis and evaluation of the networks generated by these methods is done using a web application powered by Leaflet. The lines are shown over the metropolitan area map, with lines of the same group visualized in the same color, similar to the map of the New York Subway. Visualization for the networks produced by each of the three methods can be selected.
+
+For visual comparison, I load the real-world transit network, which I am here defining as the existing and under-construction rail transport services as of 2025. These services, along with their type, length, number of lines and ridership, are provided in Table 2. 
+
+I also provide the ability to view 500-meter station catchment areas for each line, helping aid the user to see what areas are best served by each station.
+
+The visualization app includes a route-finding feature, allowing the user to determine travel times and routes for the given network. 
+
+
 \section{Results: Network Evaluation and Visualization}
 
 The evaluation of the generated transit networks is a critical step in determining their practical utility, robustness, and potential for real-world implementation. This section presents a detailed analysis of the candidate networks produced by the random walk and genetic algorithm approaches, focusing on quantitative metrics, qualitative visualizations, and comparative benchmarks. We also discuss the integration of these results into an interactive web-based visualization tool, which enables both expert and public engagement with the network designs.

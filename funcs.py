@@ -388,7 +388,7 @@ def perform_walks(
             return None, None, None
 
         if prev_node is None:
-            return random.choice(neighbors), 0, 0
+            return max(neighbors, key=lambda x: graph.nodes[x].get("score")), 0, 0
 
         v1 = (pos[prev_node][0] - pos[node][0], pos[prev_node][1] - pos[node][1])
 
@@ -600,6 +600,7 @@ def replace_lowest_scoring_walk(
     # Score all walks
     scores = [score_walk_by_kde(walk, positions, kde, radius) for walk in walks]
     min_idx = int(np.argmin(scores))
+    min_score = min(scores)
 
     complete_traversed_edges = (
         complete_traversed_edges[:min_idx] + complete_traversed_edges[min_idx + 1 :]
@@ -609,18 +610,23 @@ def replace_lowest_scoring_walk(
     walks = walks[:min_idx] + walks[min_idx + 1 :]
 
     # Generate a new walk using your perform_walks implementation
-    new_walks, traversed_edges, complete_traversed_edges = perform_walks(
-        graph,
-        positions,
-        num_walks=1,
-        min_distance=min_distance,
-        max_distance=max_distance,
-        traversed_edges=traversed_edges,
-        complete_traversed_edges=complete_traversed_edges,
-    )
-    if new_walks:
+    comp_score = 0
+    timeout=100
+    while comp_score < min_score and timeout:
+        new_walks, traversed_edges, complete_traversed_edges = perform_walks(
+            graph,
+            positions,
+            num_walks=1,
+            min_distance=min_distance,
+            max_distance=max_distance,
+            traversed_edges=traversed_edges,
+            complete_traversed_edges=complete_traversed_edges,
+        )
+        if new_walks:
+            comp_score = score_walk_by_kde(new_walks[0], positions, kde, radius)
+    
+    if new_walks:    
         walks.append(new_walks[0])
-
     return walks, traversed_edges, complete_traversed_edges
 
 
