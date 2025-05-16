@@ -10,3 +10,5 @@ libpysal
 seaborn
 scikit-learn
 scipy
+geojson
+
