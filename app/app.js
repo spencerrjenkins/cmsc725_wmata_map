@@ -77,7 +77,7 @@ fetchGeoJSON('../data/output/network.geojson').then(data => {
 });
 
 // Add support for toggling
-let currentLinesSource = 'lines_iterative';
+let currentLinesSource = 'lines_genetic';
 
 function getOffsetLatLngs(latlngA, latlngB, offsetMeters, map, direction = 1) {
     // Compute perpendicular offset for a segment from latlngA to latlngB
