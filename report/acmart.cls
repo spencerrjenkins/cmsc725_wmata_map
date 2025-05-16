@@ -2821,34 +2821,7 @@
     \par\raggedright\leftskip=\z@
     \lineskip=1pc\noindent
     \addresses\let\and\@typeset@author@bx\and\par\bigskip\egroup}
-\def\@mkauthorsaddresses{%
-  \ifnum\num@authors>1\relax
-  Authors' \else Author's \fi
-  Contact Information:
-  \bgroup
-  \def\streetaddress##1{\ClassWarning{\@classname}{ACM no longer collects
-  authors' postal addresses.  I am ignoring your street
-  address}\unskip\ignorespaces}%
-  \def\postcode##1{\ClassWarning{\@classname}{ACM no longer collects
-  authors' postal addresses.  I am ignoring your postal
-  code}\unskip\ignorespaces}%
-  \def\position##1{\unskip\ignorespaces}%
-  \gdef\@ACM@institution@separator{, }%
-  \def\institution##1{\unskip\@ACM@institution@separator ##1\gdef\@ACM@institution@separator{ and }}%
-  \def\city##1{\unskip, ##1}%
-  \def\state##1{\unskip, ##1}%
-  \renewcommand\department[2][0]{\unskip\@addpunct, ##2}%
-  \def\country##1{\unskip, ##1}%
-  \def\and{\unskip; \gdef\@ACM@institution@separator{, }}%
-  \def\@author##1{##1}%
-  \def\email##1##2{\unskip, \nolinkurl{##2}}%
-  \addresses
-  \egroup}
-\AtEndDocument{\if@ACM@nonacm\else\if@ACM@journal
-  \ifx\@authorsaddresses\@empty
-  \ClassWarningNoLine{\@classname}{Authors'
-    addresses are mandatory for ACM journals}%
-  \fi\fi\fi}
+\def\@mkauthorsaddresses{}
 \def\@setaddresses{}
 \def\@authornotemark{\g@addto@macro\@currentauthors{\footnotemark\relax}}
 \def\@@authornotemark#1{\g@addto@macro\@currentauthors{\footnotemark[#1]}}
