@@ -128,17 +128,7 @@ This paper presents a computational framework for the design of a reimagined rap
 %% information and builds the first part of the formatted document.
 \maketitle
 
-Geospatial data structures such as B-trees and quadtrees have been widely used in geographic information systems for efficient spatial queries and map partitioning~\cite{libera1986btrees,samet1984gis}. For example, B-trees can be leveraged to solve geographic range queries, while quadtrees are effective for dividing the map into regions of interest. Although the primary goal of this work is not to enable user-driven geographic queries, similar query-like operations may be useful for identifying points of transit need and determining likely parts of the map to connect.
 
-Recent work has also explored algorithms for building network graphs from geographic data, including the use of KML files and integration with GIS platforms~\cite{toman2014graph}. While this project does not employ deep learning, advances in graph deep learning and graph representation learning may inform future extensions~\cite{georgousis2021graph,twaty2019graphopt,liu2023smef}.
-
-Genetic algorithms have been shown to be effective for transit route planning and design, particularly for bus and public transit networks~\cite{chien2001ga,dib2017ga}. These approaches formulate the network design problem as an optimization task and demonstrate strong results in both simulated and real-world settings. In particular, hybrid approaches that combine genetic algorithms with other metaheuristics, such as variable neighborhood search, have been proposed for multicriteria route planning~\cite{dib2017ga}.
-
-Comprehensive overviews of route planning in transportation networks and greedy algorithms for graph problems provide valuable context for the methods used in this study~\cite{bast2016route,davis2007greedy}.
-
-Equity considerations are increasingly important in transit network design, with recent studies quantifying the impacts of horizontal and vertical equity in route planning~\cite{camporeale2016equity}. Analytical and mathematical programming approaches for optimal transit network design are also discussed in recent doctoral theses~\cite{fan2004optimal,mahmoudi2024optimal}.
-
-Beyond rapid transit, similar computational processes have been developed for bus systems, smart/adaptive transit, and high-speed rail~\cite{nayan2016bus,owais2022frequency,perivier2021realtime,roy2023hsr}. These studies introduce algorithms for service network design, frequency-based assignment, real-time routing, and station location optimization, and may inform future work on multimodal network integration.
 
 \section{Introduction}
 
@@ -160,11 +150,19 @@ Graph algorithms are central to the methodology. Candidate station networks are 
 
 Efficient spatial querying is essential for both generation and evaluation. Spatial indexing structures such as R-trees and quadtrees enable rapid nearest-neighbor searches and spatial joins~\cite{bib:samet1984quadtrees, bib:libera1986btrees}. These are critical for scaling algorithms to large metropolitan datasets.
 
-Visualization and user interaction are also key. An interactive web application (\texttt{app/app.js}) allows users to explore generated networks, simulate itineraries, and compare designs. The web app is tightly integrated with Python-based data processing and algorithmic modules (\texttt{funcs.py}, \texttt{genetic.py}), as well as the exploratory data analysis notebook (\texttt{eda.ipynb}), ensuring a seamless workflow from data ingestion to visualization and evaluation.
+This work builds on a rich body of literature in computational urbanism, spatial data structures, and network optimization~\cite{bib:bast2016route, bib:chien2001genetic, bib:dib2017ga, bib:silverman1986density, bib:samet1984quadtrees}. 
 
-This work builds on a rich body of literature in computational urbanism, spatial data structures, and network optimization~\cite{bib:bast2016route, bib:chien2001genetic, bib:dib2017ga, bib:silverman1986density, bib:samet1984quadtrees}. By integrating these techniques into a unified, open-source framework, this study contributes both methodological advances and practical tools for the design of more effective and equitable transit networks.
+Geospatial data structures such as B-trees and quadtrees have been widely used in geographic information systems for efficient spatial queries and map partitioning~\cite{libera1986btrees,samet1984gis}. For example, B-trees can be leveraged to solve geographic range queries, while quadtrees are effective for dividing the map into regions of interest. Although the primary goal of this work is not to enable user-driven geographic queries, similar query-like operations may be useful for identifying points of transit need and determining likely parts of the map to connect.
 
-In summary, this paper presents a programmatic, data-driven framework for the design and evaluation of rapid transit networks, with a focus on the Washington, DC metropolitan area. The remainder of the paper is organized as follows. Section~2 details the data sources, preprocessing steps, and algorithms used in the framework. Section~3 presents the results of network generation and evaluation, including quantitative metrics and visualizations. Section~4 discusses the implications of the findings for transit planning and urban mobility, and Section~5 concludes with directions for future research.
+Recent work has also explored algorithms for building network graphs from geographic data, including the use of KML files and integration with GIS platforms~\cite{toman2014graph}. While this project does not employ deep learning, advances in graph deep learning and graph representation learning may inform future extensions~\cite{georgousis2021graph,twaty2019graphopt,liu2023smef}.
+
+Genetic algorithms have been shown to be effective for transit route planning and design, particularly for bus and public transit networks~\cite{chien2001ga,dib2017ga}. These approaches formulate the network design problem as an optimization task and demonstrate strong results in both simulated and real-world settings. In particular, hybrid approaches that combine genetic algorithms with other metaheuristics, such as variable neighborhood search, have been proposed for multicriteria route planning~\cite{dib2017ga}.
+
+Comprehensive overviews of route planning in transportation networks and greedy algorithms for graph problems provide valuable context for the methods used in this study~\cite{bast2016route,davis2007greedy}.
+
+Equity considerations are increasingly important in transit network design, with recent studies quantifying the impacts of horizontal and vertical equity in route planning~\cite{camporeale2016equity}. Analytical and mathematical programming approaches for optimal transit network design are also discussed in recent doctoral theses~\cite{fan2004optimal,mahmoudi2024optimal}.
+
+Beyond rapid transit, similar computational processes have been developed for bus systems, smart/adaptive transit, and high-speed rail~\cite{nayan2016bus,owais2022frequency,perivier2021realtime,roy2023hsr}. These studies introduce algorithms for service network design, frequency-based assignment, real-time routing, and station location optimization, and may inform future work on multimodal network integration.
 
 % --- Table: Counties and FIPS codes ---
 
