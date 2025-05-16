@@ -272,7 +272,7 @@ function loadLinesGeoJSON(source) {
                 if (!isStation) return; // Only add marker if node is a station
                 const icon = L.icon({
                     iconUrl: 'assets/wmata.svg',
-                    iconSize: [16, 16],
+                    iconSize: [14, 14],
                     iconAnchor: [7, 7],
                     popupAnchor: [0, -7],
                 });
