@@ -26,7 +26,14 @@ This paper presents a computational framework for the design of a reimagined rap
 
 This project was completed for CMSC 725: Geospatial Algorithms and Data, taught by Professor Hanan Samet.
 
-Public transportation is a vital component of urban infrastructure, contributing to economic productivity~\cite{lit:us_transit_policy}, social equity~\cite{lit:equity}, and environmental sustainability~\cite{lit:us_transit_policy} in metropolitan areas. Washington, DC, and its surrounding areas in Maryland and Virginia, comprise the second-largest rapid transit network in the United States by daily ridership~\cite{lit:wmata_stats}. The network consists of six heavy rail lines spanning 208 kilometers and connecting 98 stations, operated by the Washington Metropolitan Area Transit Authority (WMATA)~\cite{lit:wmata_stats}. In 2019, the Washington Metro provided over 160 million trips per year, including work commutes, tourism, and other purposes~\cite{lit:wmata_stats}.
+Public transportation is a vital component of urban infrastructure, contributing to economic productivity~\cite{lit:us_transit_policy}, social equity~\cite{lit:equity}, and environmental sustainability~\cite{lit:us_transit_policy} in metropolitan areas. Washington, DC, and its surrounding areas in Maryland and Virginia, comprise the second-largest rapid transit network in the United States by daily ridership~\cite{lit:wmata_stats}. The network consists of six heavy rail lines spanning 208 kilometers and connecting 98 stations, operated by the Washington Metropolitan Area Transit Authority (WMATA)~\cite{lit:wmata_stats}. In 2019, the Washington Metro provided over 160 million trips per year, including work commutes, tourism, and other purposes~\cite{lit:wmata_stats}. Figure~\ref{fig:wmata} provides a reference for the existing transit network, which is compared to the generated networks throughout this study. 
+% --- Figure: Real-World Transit Network ---
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.4\textwidth]{./img/wmata.png}
+    \caption{Map of the real-world WMATA transit network in the Washington, DC region.}
+    \label{fig:wmata}
+\end{figure}
 
 A primary goal in designing public transit networks in the U.S. is to reduce car dependency~\cite{lit:us_transit_policy}. However, the Washington Metro has struggled to achieve this, with only about 14\% of commuters in the region using transit~\cite{lit:commute_stats}. Comparable metropolitan areas such as Toronto report higher transit commute shares, while many European and Latin American cities also have significantly higher shares~\cite{lit:toronto}. These statistics are typically limited to work commutes, as data for other trip types is less available~\cite{lit:commute_stats}.
 
@@ -36,7 +43,7 @@ This design philosophy limits practical use. The network makes suburb-to-suburb 
 
 The persistent gaps in the current network's ability to connect high-density and underserved regions further motivate a new approach. For example, the lack of direct connections between major suburban job centers or marginalized neighborhoods limits economic opportunity and social inclusion~\cite{lit:equity}. Existing evaluation frameworks may overlook these gaps, focusing on aggregate metrics that mask disparities in access and service quality.
 
-To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. This project leverages core concepts from CMSC 725, including spatial data structures (such as quadtrees and B-trees), proximity graphs, and efficient spatial querying, to address the challenges of transit network design. The methodology integrates geospatial analysis, graph algorithms, and data-driven optimization to generate and evaluate alternative transit networks for the Washington, DC region. By applying techniques from the course, such as kernel density estimation for spatial demand modeling and the use of Gabriel graphs for candidate network construction, the project demonstrates the power of computational geometry and geospatial algorithms in solving real-world urban problems~\cite{lit:spatial_algorithms}.
+To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. 
 
 
 % --- Table: Counties and FIPS codes ---
@@ -82,124 +89,71 @@ WMATA & Existing transit network \\
 \end{tabular}
 \end{table}
 
-% --- Figure: Area Considered ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/area_considered.png}
-    \caption{Counties and districts considered as part of the Washington, DC metropolitan area.}
-    \label{fig:area_considered}
-\end{figure}
-
-As shown in Figure~\ref{fig:area_considered}, the study area includes all counties and districts listed in Table~\ref{tab:counties}.
-
-% --- Figure: Real-World Transit Network ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/wmata.png}
-    \caption{Map of the real-world WMATA transit network in the Washington, DC region.}
-    \label{fig:wmata}
-\end{figure}
-
-Figure~\ref{fig:wmata} provides a reference for the existing transit network, which is compared to the generated networks throughout this study.
-
-% --- Figure: Census Block Map ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/city_map.png}
-    \caption{Census block map for the Washington, DC area.}
-    \label{fig:city_map}
-\end{figure}
-
-Figure~\ref{fig:city_map} shows the census block boundaries used for population and density analysis.
-
-% --- Figure: Transformed Census Block Data ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/point_likelihood.png}
-    \caption{Transformed census block data representing input to the recursive spatial algorithm.}
-    \label{fig:point_likelihood}
-\end{figure}
-
-Figure~\ref{fig:point_likelihood} visualizes the transformed census block data used to identify high-need locations for transit.
-
-% --- Figure: KDE Heatmap ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/kde.png}
-    \caption{Kernel density estimation (KDE) heatmap of population and transit demand in the Washington, DC region.}
-    \label{fig:kde_heatmap}
-\end{figure}
-
-Figure~\ref{fig:kde_heatmap} displays the KDE heatmap used to model spatial demand for transit.
-
-% --- Figure: Contracted Gabriel Graph ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/graph.png}
-    \caption{Contracted Gabriel graph representing the search space for network generation.}
-    \label{fig:contracted_gabriel}
-\end{figure}
-
-Figure~\ref{fig:contracted_gabriel} shows the contracted Gabriel graph used as the basis for candidate network construction.
-
-% --- Figure: Voronoi Polygons ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{voronoi.png}
-    \caption{Voronoi polygons constructed around neighborhood centroids in the study area.}
-    \label{fig:voronoi}
-\end{figure}
-
-Figure~\ref{fig:voronoi} illustrates the Voronoi polygons used to analyze neighborhood coverage and spatial equity.
-
-% --- Figure: KDE Map ---
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/transit_potential.png}
-    \caption{Kernel density estimation (KDE) map of transit potential in the Washington, DC region.}
-    \label{fig:kde}
-\end{figure}
-
-% --- Figure: Network Map Example ---
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/network_map.png}
-    \caption{Example of a generated candidate network overlaid on the metropolitan area.}
-    \label{fig:networkmap}
-\end{figure}
-
-% --- Figure: Schematic Map Example ---
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/lines_genetic.png}
-    \caption{Schematic map of a generated network using the genetic algorithm.}
-    \label{fig:schematic}
-\end{figure}
 
 \section{Network Design}
 
 In this section, the network design process is detailed, including data collection, transformation, metric construction, network generation constraints, and the definition of the transit network search space. The network is built within this search space according to the scoring metrics and constraints, followed by post-processing.
 
 \subsection{Data Sources and Transformation}
-The first step is to define the study area. Table~\ref{tab:counties} lists the counties and county-equivalents included, along with their 2020 population, density, and FIPS code~\cite{lit:census}. Data for the Washington Metropolitan Area is available from Open Data DC, Open Data MD, and the Virginia Open Data Portal~\cite{lit:opendata}. Census block population data is obtained from the US Census Bureau. Transit potential for each block is calculated as population divided by area. A recursive spatial tree algorithm identifies the highest-need locations for transit, using a depth of 8. The resulting points represent locations with the highest need for transit based on population.
+The first step is to define the study area. Table~\ref{tab:counties} lists the counties and county-equivalents included, along with their 2020 population, density, and FIPS code~\cite{lit:census}. Figure~\ref{fig:area_considered} shows a map of the included regions.
+% --- Figure: Area Considered ---
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{./img/area_considered.png}
+    \caption{Counties and districts considered as part of the Washington, DC metropolitan area.}
+    \label{fig:area_considered}
+\end{figure}
+
+Data for the Washington Metropolitan Area is available from Open Data DC, Open Data MD, and the Virginia Open Data Portal~\cite{lit:opendata}. Census block population data is obtained from the US Census Bureau. Transit potential for each block is calculated as population divided by area. Figure~\ref{fig:city_map} shows the census block boundaries used for population and density analysis.
+
+% --- Figure: Census Block Map ---
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{./img/city_map.png}
+    \caption{Census block map for the Washington, DC area.}
+    \label{fig:city_map}
+\end{figure}
+
+The census block data is transformed by taking the log of the population density. A recursive spatial tree algorithm identifies the highest-need locations for transit, using a depth of 8. The resulting points represent locations with the highest need for transit based on population. Figure~\ref{fig:point_likelihood} visualizes the transformed census block data used to identify high-need locations for transit.
+
+% --- Figure: Transformed Census Block Data ---
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{./img/point_likelihood.png}
+    \caption{Transformed census block data representing input to the recursive spatial algorithm.}
+    \label{fig:point_likelihood}
+\end{figure}
 
 This data is augmented with points for important destinations, as shown in Table~\ref{tab:datasources}. The selection reflects the availability of data from each source. The study also includes all bus and rail stops in the counties listed, to approximate areas of high transit importance.
 
 Raw data is transformed for network analysis using \texttt{geopandas}, with all data projected to a common CRS (typically EPSG:3857). Centroids are calculated for each census block and other points, providing candidate locations for potential stations. Unique identifiers and relevant attributes are assigned to each spatial unit. Intermediate results are saved as GeoJSON files for reproducibility and efficient reloading. This preprocessing pipeline, implemented in \texttt{eda.ipynb} and \texttt{funcs.py}, ensures the data is clean, consistent, and ready for network construction.
 
-A kernel density estimate (KDE) is constructed over the selected points to provide scores for spatial queries at several stages. Figure~\ref{fig:kde} shows the KDE map for the area.
+A kernel density estimate (KDE) is constructed over the selected points to provide scores for spatial queries at several stages. Figure~\ref{fig:kde_heatmap} displays the KDE heatmap used to model spatial demand for transit.
+
+% --- Figure: KDE Heatmap ---
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{./img/kde.png}
+    \caption{Kernel density estimation (KDE) heatmap of population and transit demand in the Washington, DC region.}
+    \label{fig:kde_heatmap}
+\end{figure}
+
+
 
 A mesh of candidate transit points is generated to balance spatial coverage with computational tractability. Population-based points (census block centroids) are combined with non-population points and deduplicated. The Gabriel graph, constructed using \texttt{libpysal.weights.Gabriel}, connects mutually closest points, resulting in a proximity network suitable for transit planning. The Gabriel graph is converted to a \texttt{networkx} graph for further manipulation, including assignment of edge weights based on Euclidean distance. This mesh serves as the substrate for both random walk and genetic algorithm-based network generation.
 
 A Gabriel graph is constructed using the points. The graph is contracted by condensing Louvain communities by a user-defined threshold, forming the overall search space for the network. The network is constructed from the nodes and edges of this graph.
 
-With the data fully preprocessed, one of three network construction algorithms is used to determine which line segments from the contracted Gabriel graph become part of the transit network.
+With the data fully preprocessed, one of three network construction algorithms is used to determine which line segments from the contracted Gabriel graph become part of the transit network. Figure~\ref{fig:contracted_gabriel} shows the contracted Gabriel graph used as the basis for candidate network construction.
 
 % --- Figure: Contracted Gabriel Graph ---
-Figure~\ref{fig:contractedgraph} shows the contracted Gabriel graph used as the search space for network generation.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{./img/graph.png}
+    \caption{Contracted Gabriel graph representing the search space for network generation.}
+    \label{fig:contracted_gabriel}
+\end{figure}
+
 
 \subsection{Network Creation: Naive (Random Walk) Algorithm}
 
@@ -231,7 +185,16 @@ Each walk represents a candidate metro line. Lines are grouped by shared alignme
 
 Not all nodes in the contracted Gabriel graph become stations due to varying edge lengths. Stations are selected as all terminal nodes, transfer points between different line groups, and nodes spaced at least 1 km apart. This ensures each station serves a catchment area of roughly 500 meters, corresponding to a 15-minute walk.
 
-Station names are assigned by proximity to neighborhood centroids, using data from Arlington County, Maryland, and the District of Columbia. If multiple stations fall within the same neighborhood, a numeric suffix is added. I was unable to find neighborhood name or boundary data for for other parts of Virginia.
+Station names are assigned by proximity to neighborhood centroids, using data from Arlington County, Maryland, and the District of Columbia. If multiple stations fall within the same neighborhood, a numeric suffix is added. I was unable to find neighborhood name or boundary data for for other parts of Virginia. Figure~\ref{fig:voronoi} illustrates the Voronoi polygons used to analyze neighborhood coverage and spatial equity.
+
+% --- Figure: Voronoi Polygons ---
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{./img/voronoi.png}
+    \caption{Voronoi polygons constructed around neighborhood centroids in the study area.}
+    \label{fig:voronoi}
+\end{figure}
+
 
 \subsection{Benchmarks and Evaluation Criteria}
 Candidate networks are evaluated using benchmarks that reflect practical and theoretical priorities: geographic coverage (fraction of high-demand areas served), network connectivity (linking major regions), efficiency (minimizing redundant or excessively long lines), and demand capture (maximizing KDE-weighted coverage). These metrics are computed for each network and inform both random walk scoring and the genetic algorithm's fitness function.
@@ -265,13 +228,6 @@ Genetic: diversity incentive weight & Incentive for diversity in population & -1
 \end{tabular}
 \end{table}
 
-% --- Figure: Example Schematic Map ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/lines_genetic.png}
-    \caption{Schematic map of a generated network using the genetic algorithm.}
-    \label{fig:schematic2}
-\end{figure}
 
 \section{Network Visualization and Exploration}
 
