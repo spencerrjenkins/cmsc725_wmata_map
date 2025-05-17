@@ -346,8 +346,6 @@ The iterative improvement algorithm takes the most time to execute, but provides
 
 The genetic algorithm is the most sophisticated, and its output reflects this. There are strong connections between the urban core and suburbs in all directions
 
-% DATA TO MAKE A TABLE FOR. The 16 numbers below are divided into four rows. The first row is Genetic, the second row is Iterative, the third row is Naive, and the final row is Real-world. In each row there are four data points. The columns are: Percent critical transit points covered, percent neighborhoods covered, average distance from closest station across metro area in meters, and average distance from closest station across District of Columbia in meters. Please round the percent values to the nearest hundredth of a percent, convert the distances to kilometers and round to the nearest hundredth, as requested.
-% --- Table: Network Evaluation Metrics ---
 
 \begin{table}[h]
 \caption{Comparison of Network Designs on Key Metrics}
@@ -360,6 +358,22 @@ Genetic & 17.47 & 6.61 & 11.03 & 0.92 \\
 Iterative & 24.12 & 4.96 & 11.19 & 1.67 \\
 Naive & 18.95 & 3.99 & 10.86 & 1.59 \\
 Real-world & 13.39 & 3.03 & 14.94 & 1.59 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- Table: Sample Transit Times ---
+\begin{table}[h]
+\caption{Sample Transit Times for Selected Origin-Destination Pairs}
+\label{tab:transittimes}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Network} & \textbf{College Park → DCA} & \textbf{Bethesda → Travilah} & \textbf{Congress Heights → Silver Spring} \\
+\midrule
+DC Metro Trip Planner & 43 min & No route found & 41 min \\
+Naive & 32 min & 32 min & 17 min \\
+Naive + Iterations & 37 min & 1 hr 1 min & 19 min \\
+Genetic & 29 min & 41 min & 30 min \\
 \bottomrule
 \end{tabular}
 \end{table}
