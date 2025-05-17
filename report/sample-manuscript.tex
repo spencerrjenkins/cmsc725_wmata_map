@@ -341,7 +341,33 @@ Efficiency is a critical consideration in transit network design, as it directly
 Direct comparison with the existing WMATA Metro and regional rail systems highlights the practical benefits of the generated networks. The new designs provide 19 additional direct suburb-to-suburb connections, reducing the need for time-consuming transfers at central hubs. The number of unique neighborhoods with at least one station increases from 62 to 89, and the proportion of the population within a 1 km catchment area rises from 54.3\% to 73.8\%. Travel time simulations for common origin-destination pairs show average reductions of 11.6 minutes per trip, with the largest gains observed for cross-town and circumferential journeys. The networks also demonstrate improved integration with existing infrastructure, as lines are aligned to facilitate transfers to commuter rail, bus rapid transit, and major employment centers. These improvements are achieved without a disproportionate increase in network complexity or operational burden, as measured by the number of required trainsets and the average number of lines per station.
 
 \subsection{Influential Hyperparameters}
-There were many hyperparameters that contributed to the success or lack thereof of the input. Louvain community resolution threshold, line minimum and maximum distance, minimum angle, maximum devation and maximum reset, group assignment threshold, station radius, number iterations on iterative improvement, station catchment distance, and genetic weights: total score weight, service pattern weight, redundancy penalty weight, load penalty weight, and diversity incentive weight. Table ??? shows the hyperparameters and the values used.
+There were many hyperparameters that contributed to the success or lack thereof of the input. Louvain community resolution threshold, line minimum and maximum distance, minimum angle, maximum devation and maximum reset, group assignment threshold, station radius, number iterations on iterative improvement, station catchment distance, and genetic weights: total score weight, service pattern weight, redundancy penalty weight, load penalty weight, and diversity incentive weight. Table \ref{tab:hyperparams} shows the hyperparameters and the values used.
+
+% --- Hyperparameter Table ---
+\begin{table}[h]
+\caption{Key Hyperparameters Used in Network Generation}
+\label{tab:hyperparams}
+\begin{tabular}{lll}
+\toprule
+\textbf{Hyperparameter} & \textbf{Explanation} & \textbf{Value} \\
+\midrule
+Louvain community resolution threshold & Controls granularity of community contraction & 0.07 \\
+Line minimum distance & Minimum allowed length for a line (meters) & 45,000 \\
+Line maximum distance & Maximum allowed length for a line (meters) & 100,000 \\
+Minimum angle & Minimum angle between consecutive edges (degrees) & 130 \\
+Maximum deviation & Maximum allowed deviation from initial direction (degrees) & 80 \\
+Maximum reset angle & Maximum angle to reset walk direction (degrees) & 30 \\
+Group assignment threshold & Similarity threshold for grouping lines & 50\% \\
+Station radius & Minimum distance between stations (meters) & 500 \\
+Iterative improvement iterations & Number of iterations for improvement algorithm & 100 \\
+Genetic: total score weight & Weight for total score in fitness function & 1 \\
+Genetic: service pattern weight & Weight for service pattern in fitness function & 1000 \\
+Genetic: redundancy penalty weight & Penalty for redundant lines in fitness function & -50 \\
+Genetic: load penalty weight & Penalty for uneven service distribution & -20 \\
+Genetic: diversity incentive weight & Incentive for diversity in population & -1 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 % Louvain community resolution threshold 0.07, line minimum 45000m and maximum distance 100000m, minimum angle 130 degrees, maximum devation 80 degrees and maximum reset angle 30 degrees, group assignment threshold 50\%, station radius 500m, number iterations on iterative improvement alg 100, and genetic weights: total score weight 1, service pattern weight 1000, redundancy penalty weight -50, load penalty weight -20, and diversity incentive weight -1.
 
