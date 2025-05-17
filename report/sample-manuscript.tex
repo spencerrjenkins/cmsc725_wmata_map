@@ -48,9 +48,10 @@ To address these challenges, this study combines computational and geospatial te
 
 % Table 1: Counties and County-Equivalents Considered
 
-\begin{table}[h]
+\begin{table*}[h]
 \caption{Counties and County-Equivalents in the Study Area}
 \label{tab:counties}
+\resizebox{\textwidth}{!}{
 \begin{tabular}{lccc}
 \toprule
 County/Equivalent & 2020 Population & Density (per km$^2$) & FIPS Code \\
@@ -66,7 +67,8 @@ Fairfax City & 24,146 & 1,563 & 51600 \\
 Loudoun County & 420,959 & 334 & 51107 \\
 \bottomrule
 \end{tabular}
-\end{table}
+}
+\end{table*}
 
 % Add citation for census data
 \noindent\textit{Source: U.S. Census Bureau, QuickFacts, 2020 Census Redistricting Data (Public Law 94-171) Summary File~\cite{lit:census}.} 
@@ -204,9 +206,10 @@ Candidate networks are evaluated using benchmarks that reflect practical and the
 There were many hyperparameters that contributed to the success or lack thereof of the input. Table \ref{tab:hyperparams} shows the hyperparameters and the values used. The Louvain community resolution threshold was a key factor in determining the success of the network creation algorithm. Higher networks lead to stronger community contraction, leading to sparser graphs. The value of 0.07 provided a balance between a network with far too large of a search space and far too long considering short edges of less than a city block, while values that were too great resulted in suburban nodes being greatly reduced or lost. The line minimum and maximum distance were selected to reflect the size of the Washington metropolitan area and the distance of similar rapid transit services across the United States. The angle constraints were chosen so that the course of a given transit line would be preserved while still allowing for options and randomness. A minimum angle constraint of greater than 130 degrees results in premature halting of the walk algorithm as many nodes do not have any edges with angles greater than this. The same applies to the maximum deviation and maximum reset angles, where values too low for both hyperparameters results in walks reaching nodes they cannot proceed from. The station catchment area size, used in determining station scoring and spacing, is set to 500 meters, which reflects an average walking speed of 3 km/hr with Manhattan distance, and indicates the range around a station accessible by walking speed. The genetic algorithm weights were chosen to provide the strongest preference towards networks with coverage of low- and high-density areas on the same line. 
 
 % --- Hyperparameter Table ---
-\begin{table}[h]
+\begin{table*}[h]
 \caption{Key Hyperparameters Used in Network Generation}
 \label{tab:hyperparams}
+\resizebox{\textwidth}{!}{
 \begin{tabular}{lll}
 \toprule
 \textbf{Hyperparameter} & \textbf{Explanation} & \textbf{Value} \\
@@ -227,7 +230,8 @@ Genetic: load penalty weight & Penalty for uneven service distribution & -20 \\
 Genetic: diversity incentive weight & Incentive for diversity in population & -1 \\
 \bottomrule
 \end{tabular}
-\end{table}
+}
+\end{table*}
 
 
 \section{Network Visualization and Exploration}
@@ -278,9 +282,10 @@ I analyze the success of the networks quantitatively using several metrics. Firs
     \label{fig:naive_network}
 \end{figure}
 
-\begin{table}[h]
+\begin{table*}[h]
 \caption{Comparison of Network Designs on Key Metrics}
 \label{tab:networkmetrics}
+\resizebox{\textwidth}{!}{
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Network} & \textbf{\% Critical Coverage} & \textbf{\% Neighborhood Coverage} & \textbf{Avg. dist, regional} & \textbf{Avg. dist, DC} \\
@@ -292,19 +297,21 @@ Naive & 18.95 & 3.99 & 10.86 & 1.59 \\
 Real-world & 13.39 & 3.03 & 14.94 & 1.59 \\
 \bottomrule
 \end{tabular}
-\end{table}
+}
+\end{table*}
 
 By the metrics established in this table, the networks produced by all three algorithms outperform the real-world network. They exhibit higher critical coverage and neighborhood coverage rates, and provide lower average distances across the region. Each algorithm performs most strongly in a different metric: the genetic algorithm performs most strongly in neighborhood coverage and average distance within DC, while the naive algorithm shows the lowest average distance across the entire region, and the iterative improvement algorithm shows the highest critical coverage. 
 
 I also perform some potential use-case evaluation by identifying location pairs and calculating the transit time in each network. I calculate the transit times for my network using my Route Planner tool, and I calculate transit times for the real-world network using the WMATA transit planner application. In this report I compare the results obtained for three sample itineraries chosen to demonstrate a variety of transit uses and to address the shortcomings of the existing WMATA network that I raised in the introduction. The three routes presented in this paper are: College Park to DCA Airport (suburb to important hub), downtown Bethesda to Reston Center (suburb to suburb), and Congress Heights to downtown Silver Spring (disadvantaged neighborhood to suburb). For all three routes, the algorithms developed in this project provide faster transit times than the real-world network, with each algorithm having stronger performance on different routes. Table \ref{tab:transittimes} shows the travel times calculated for each network. 
 
 % --- Table: Sample Transit Times ---
-\begin{table}[h]
+\begin{table*}[h]
 \caption{Sample Transit Times for Selected Origin-Destination Pairs}
 \label{tab:transittimes}
+\resizebox{\textwidth}{!}{
 \begin{tabular}{lccc}
 \toprule
-\textbf{Network} & \textbf{College Park → DCA} & \textbf{Bethesda → Reston} & \textbf{Congress Heights → Silver Spring} \\
+\textbf{Network} & \textbf{College Park $\rightarrow$ DCA} & \textbf{Bethesda $\rightarrow$ Reston} & \textbf{Congress Heights $\rightarrow$ Silver Spring} \\
 \midrule
 Genetic & 29 min & 41 min & 30 min \\
 Iterative & 37 min & 1 hr 1 min & 19 min \\
@@ -313,7 +320,8 @@ Naive & 32 min & 32 min & 17 min \\
 Real-world & 43 min & 1 hr 7 min & 41 min \\
 \bottomrule
 \end{tabular}
-\end{table}
+}
+\end{table*}
 
 Visual comparison of the three obtained networks can provide additional justification and insight. The network has strong suburb-to-suburb connection, and also has a few strong connections in the urban core, but there are some large underserved areas. This is likely because the search space is simply too large to ensure that random walks will construct a network that covers it sufficiently. This likely explains its low performance in neighborhood coverage and average station distance within DC.
 
