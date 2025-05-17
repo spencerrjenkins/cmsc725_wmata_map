@@ -346,28 +346,23 @@ The iterative improvement algorithm takes the most time to execute, but provides
 
 The genetic algorithm is the most sophisticated, and its output reflects this. There are strong connections between the urban core and suburbs in all directions
 
-% DATA TO MAKE A TABLE FOR. The 16 numbers below are divided into four rows. The first row is Genetic, the second row is Iterative, the third row is Naive, and the final row is Real-world. In each row there are four data points. The columns are: Percent critical transit points covered, percent neighborhoods covered, average distance from closest station across metro area in meters, and average distance from closest station across District of Columbia in meters. Please round the percent values to the nearest hundredth of a percent, convert the distances to kilometers and round to the nearest hundredth of a kilometer.
+% DATA TO MAKE A TABLE FOR. The 16 numbers below are divided into four rows. The first row is Genetic, the second row is Iterative, the third row is Naive, and the final row is Real-world. In each row there are four data points. The columns are: Percent critical transit points covered, percent neighborhoods covered, average distance from closest station across metro area in meters, and average distance from closest station across District of Columbia in meters. Please round the percent values to the nearest hundredth of a percent, convert the distances to kilometers and round to the nearest hundredth, as requested.
+% --- Table: Network Evaluation Metrics ---
 
-17.471108089734873,
- 6.6115702479338845,
- 11028.791073538747,
- 916.2676772935321
-
- 24.1162474507138,
-4.958677685950414,
- 11193.393076589782,
- 1667.2053960291078
-
- 18.949694085656017,
-3.994490358126722,
- 10856.134057332005,
- 1586.2258374218466
-
-13.392250169952414,
-3.0303030303030303,
- 14940.644861813917,
- 1592.1486479335385
- 
+\begin{table}[h]
+\caption{Comparison of Network Designs on Key Metrics}
+\label{tab:networkmetrics}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Network} & \textbf{\% Critical Points Covered} & \textbf{\% Neighborhoods Covered} & \textbf{Avg. Distance (km), Metro Area} & \textbf{Avg. Distance (km), DC} \\
+\midrule
+Genetic & 17.47 & 6.61 & 11.03 & 0.92 \\
+Iterative & 24.12 & 4.96 & 11.19 & 1.67 \\
+Naive & 18.95 & 3.99 & 10.86 & 1.59 \\
+Real-world & 13.39 & 3.03 & 14.94 & 1.59 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Overview of Results}
 For example, the best genetic algorithm network achieved geographic coverage of 87.2\% of high-demand census blocks (within 1 km of a station), compared to 68.5\% for the current Metro. Demand capture, as measured by KDE-weighted coverage, increased by 24.6\% over the baseline. The average number of transfers required for cross-regional trips decreased from 2.1 in the existing network to 1.4 in the optimized designs, indicating improved directness and reduced travel friction. Network connectivity, as measured by the size of the largest connected component and average path length, also improved, with the largest component encompassing 98.3\% of all candidate stations and the average shortest path length reduced by 18.7\%. These results demonstrate the effectiveness of the computational framework in generating networks that are both more inclusive and more efficient than the legacy system.

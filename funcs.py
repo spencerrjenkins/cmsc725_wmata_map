@@ -1,20 +1,28 @@
 import numpy as np
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import box, MultiPolygon, Polygon, Point, MultiPoint, LineString
+from shapely.geometry import (
+    box,
+    MultiPolygon,
+    Polygon,
+    Point,
+    MultiPoint,
+    LineString,
+    shape,
+)
 import matplotlib.pyplot as plt
 from sklearn.neighbors import KernelDensity
 import contextily as cx
 from pyproj import Transformer, Geod
 import geojson
-
 from matplotlib.patches import Circle
 import community
 from collections import defaultdict
-
 import networkx as nx
 import random
 import math
+from shapely.ops import unary_union  # moved from inside functions to top
+from scipy.spatial import cKDTree
 
 
 def load_shapefile(filepath, crs="EPSG:4326"):
@@ -611,7 +619,7 @@ def replace_lowest_scoring_walk(
 
     # Generate a new walk using your perform_walks implementation
     comp_score = 0
-    timeout=100
+    timeout = 100
     while comp_score < min_score and timeout:
         new_walks, traversed_edges, complete_traversed_edges = perform_walks(
             graph,
@@ -624,8 +632,8 @@ def replace_lowest_scoring_walk(
         )
         if new_walks:
             comp_score = score_walk_by_kde(new_walks[0], positions, kde, radius)
-    
-    if new_walks:    
+
+    if new_walks:
         walks.append(new_walks[0])
     return walks, traversed_edges, complete_traversed_edges
 
@@ -669,7 +677,14 @@ def save_graph_to_geojson(graph, positions, out_path):
 
 
 def save_lines_to_geojson(
-    lines, graph, positions, kde, out_path, node_station_status=None, groups=None, names=defaultdict(lambda: "Unnamed station")
+    lines,
+    graph,
+    positions,
+    kde,
+    out_path,
+    node_station_status=None,
+    groups=None,
+    names=defaultdict(lambda: "Unnamed station"),
 ):
     """
     Save the transit lines to a GeoJSON file, including KDE value at each vertex.
@@ -711,7 +726,7 @@ def save_lines_to_geojson(
             is_station = [
                 bool(node_station_status.get(n, True)) for n in line if n in positions
             ]
-        name_list = [names[n] if is_station[i] else '' for i, n in enumerate(line)]
+        name_list = [names[n] if is_station[i] else "" for i, n in enumerate(line)]
         feature = {
             "geometry": LineString(coords),
             "type": "line",
@@ -730,25 +745,42 @@ def save_lines_to_geojson(
 
 def load_lines_from_geojson(path):
     """
-    Loads lines and positions from a GeoJSON file created by save_lines_to_geojson.
+    Loads lines, status, groups, and names from a GeoJSON file created by save_lines_to_geojson.
     Returns:
-        lines: list of lists of node coordinates (as tuples)
-        positions: dict mapping node coordinate (tuple) to (x, y) coordinates
+        lines: list of lists of node IDs (as in save_lines_to_geojson)
+        status: dict mapping node ID to True/False (station status)
+        groups: list of group assignments (one per line)
+        names: dict mapping node ID to station name (if available)
     """
 
     with open(path, "r") as f:
         gj = geojson.load(f)
     lines = []
-    positions = {}
+    groups = []
+    status = defaultdict(lambda: True)
+    names = defaultdict(lambda: "Unnamed station")
     for feature in gj["features"]:
+        if feature.get("properties", {}).get("type") != "line":
+            continue
+        props = feature["properties"]
         coords = feature["geometry"]["coordinates"]
-        line = []
-        for c in coords:
-            node = tuple(c)
-            line.append(node)
-            positions[node] = node  # Store as (lon, lat)
+        # Convert to tuple for node IDs (as in save_lines_to_geojson)
+        line = [tuple(c) for c in coords]
         lines.append(line)
-    return lines, positions
+        # Group assignment
+        groups.append(props.get("group", None))
+        # Station status (is_station is a list of bools, one per node in line)
+        is_station = props.get("is_station", None)
+        if is_station is not None and len(is_station) == len(line):
+            for n, s in zip(line, is_station):
+                status[n] = bool(s)
+        # Names (name_list is a list of names, one per node in line)
+        name_list = props.get("name_list", None)
+        if name_list is not None and len(name_list) == len(line):
+            for n, nm in zip(line, name_list):
+                if nm:
+                    names[n] = nm
+    return lines, dict(status), groups, dict(names)
 
 
 def mark_station_nodes(walks, graph, positions, min_station_dist=1000, groups=None):
@@ -802,7 +834,7 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000, groups=No
                             "weight", None
                         )
                     else:
-                        # print(" - ", c, haversine(positions[curr_node], positions[curr_prev_node]))
+                        # print(" - ", c, haversine(positions[currNode], positions[currPrevNode]))
                         total_distance += haversine(
                             positions[curr_node], positions[curr_prev_node]
                         )
@@ -836,7 +868,7 @@ def mark_station_nodes(walks, graph, positions, min_station_dist=1000, groups=No
                             "weight", None
                         )
                     else:
-                        # print(" - ", c, haversine(positions[curr_node], positions[curr_prev_node]))
+                        # print(" - ", c, haversine(positions[currNode], positions[currPrevNode]))
                         total_distance += haversine(
                             positions[curr_node], positions[curr_prev_node]
                         )
@@ -988,5 +1020,234 @@ def assign_station_neighborhoods(positions, status, neighborhoods_gdf):
         base_name = neighborhood_names[min_idx]
         neighborhood_names_count[base_name] += 1
         name_id = neighborhood_names_count[base_name]
-        station_to_neighborhood[node] = f"{base_name.split('-')[1 if len(base_name.split("-")) > 1 else 0]} {name_id if name_id > 1 else ""}".strip()
+        station_to_neighborhood[node] = (
+            f"{base_name.split('-')[1 if len(base_name.split("-")) > 1 else 0]} {name_id if name_id > 1 else ""}".strip()
+        )
     return station_to_neighborhood
+
+
+def station_catchment_coverage(
+    lines, positions, status, points_gdf, catchment_radius=500
+):
+    """
+    Calculate the percentage of points within at least one station catchment area and
+    the percent overlap of station catchment areas for a network.
+
+    Args:
+        lines (list of list): Each line is a list of node IDs (vertices).
+        positions (dict): Mapping from node ID to (x, y) coordinates (projected CRS).
+        status (dict): Mapping from node ID to True/False (True if station).
+        points_gdf (GeoDataFrame): Points to test for coverage (same CRS as positions).
+        catchment_radius (float): Radius in meters for the catchment area (default 500).
+
+    Returns:
+        percent_covered (float): Percent of points within at least one station catchment area.
+        percent_overlap (float): Average percent overlap of catchment areas per covered point.
+    """
+    from shapely.geometry import Point
+    import numpy as np
+
+    try:
+        from shapely.ops import unary_union
+    except ImportError:
+        from shapely.ops import cascaded_union as unary_union
+
+    # Get all station nodes
+    station_nodes = [
+        n for n, is_station in status.items() if is_station and n in positions
+    ]
+    if not station_nodes:
+        return 0.0, 0.0
+    # Create catchment area polygons for each station
+    station_geoms = [
+        Point(*positions[node]).buffer(catchment_radius) for node in station_nodes
+    ]
+    # Union of all catchment areas
+    all_catchments = unary_union(station_geoms)
+    # Check which points fall within any catchment
+    covered = points_gdf.geometry.apply(lambda pt: all_catchments.contains(pt))
+    percent_covered = (
+        covered.sum() / len(points_gdf) * 100 if len(points_gdf) > 0 else 0.0
+    )
+    # For overlap: count, for each covered point, how many catchments it falls in
+    overlap_counts = []
+    for pt in points_gdf.geometry:
+        count = sum(catch.contains(pt) for catch in station_geoms)
+        if count > 0:
+            overlap_counts.append(count)
+    percent_overlap = (
+        (np.mean(overlap_counts) if overlap_counts else 0) / len(station_geoms) * 100
+    )
+    return percent_covered, percent_overlap
+
+
+def station_gdf_catchment_coverage(stations_gdf, points_gdf, catchment_radius=500):
+    """
+    Calculate the percentage of points within at least one station catchment area and
+    the percent overlap of station catchment areas, given GeoDataFrames of stations and points.
+
+    Args:
+        stations_gdf (GeoDataFrame): Points representing station locations (geometry column, projected CRS).
+        points_gdf (GeoDataFrame): Points to test for coverage (geometry column, same CRS as stations_gdf).
+        catchment_radius (float): Radius in meters for the catchment area (default 500).
+
+    Returns:
+        percent_covered (float): Percent of points within at least one station catchment area.
+        percent_overlap (float): Average percent overlap of catchment areas per covered point.
+    """
+    try:
+        from shapely.ops import unary_union
+    except ImportError:
+        from shapely.ops import cascaded_union as unary_union
+    import numpy as np
+    from shapely.geometry import Point
+
+    if stations_gdf.empty or points_gdf.empty:
+        return 0.0, 0.0
+
+    # Create catchment area polygons for each station
+    station_geoms = [pt.buffer(catchment_radius) for pt in stations_gdf.geometry]
+    # Union of all catchment areas
+    all_catchments = unary_union(station_geoms)
+    # Check which points fall within any catchment
+    covered = points_gdf.geometry.apply(lambda pt: all_catchments.contains(pt))
+    percent_covered = (
+        covered.sum() / len(points_gdf) * 100 if len(points_gdf) > 0 else 0.0
+    )
+    return percent_covered
+
+
+def combine_polygons_to_single(polygon_gdf):
+    """
+    Combine all polygons and multipolygons in a GeoDataFrame into a single (multi)polygon.
+    Returns a single shapely Polygon or MultiPolygon.
+    """
+    return unary_union(polygon_gdf.geometry)
+
+
+def average_distance_to_points_within_polygon(points_gdf, polygon, num_samples=1000):
+    """
+    Compute the average distance from random locations within a polygon to the nearest point in points_gdf.
+    Args:
+        points_gdf (GeoDataFrame): GeoDataFrame of points (geometry column).
+        polygon (Polygon or MultiPolygon): The area to sample within.
+        num_samples (int): Number of random samples to draw within the polygon.
+    Returns:
+        float: The average distance from a random location in the polygon to the nearest point.
+    """
+    import numpy as np
+    from shapely.geometry import Point
+    from shapely.geometry import MultiPolygon, Polygon
+    from scipy.spatial import cKDTree
+    from shapely.ops import unary_union
+
+    # Get all point coordinates
+    coords = np.array([(pt.x, pt.y) for pt in points_gdf.geometry])
+    if len(coords) == 0:
+        return np.nan
+    tree = cKDTree(coords)
+
+    # Prepare for sampling
+    if isinstance(polygon, MultiPolygon):
+        polygons = list(polygon.geoms)
+    else:
+        polygons = [polygon]
+    # Get bounds for sampling
+    bounds = [poly.bounds for poly in polygons]
+    # Sample points
+    samples = []
+    rng = np.random.default_rng()
+    while len(samples) < num_samples:
+        # Randomly pick a polygon weighted by area
+        areas = [poly.area for poly in polygons]
+        poly = rng.choice(polygons, p=np.array(areas) / np.sum(areas))
+        minx, miny, maxx, maxy = poly.bounds
+        x = rng.uniform(minx, maxx)
+        y = rng.uniform(miny, maxy)
+        pt = Point(x, y)
+        if poly.contains(pt):
+            samples.append((x, y))
+    # Compute distances
+    dists, _ = tree.query(samples)
+    return float(np.mean(dists))
+def population_density_kde(blocks_gdf, bandwidth=1000, n_samples_per_person=0.01, random_state=None):
+    """
+    Estimate population density using KDE from census block polygons and population.
+
+    Args:
+        blocks_gdf (GeoDataFrame): Must have 'POP20' and polygon geometry in EPSG:3857.
+        bandwidth (float): KDE bandwidth in meters.
+        n_samples_per_person (float): Number of sample points per person (default 0.01).
+        random_state (int or None): Random seed.
+
+    Returns:
+        kde (KernelDensity): Fitted sklearn KernelDensity object.
+        sample_points_gdf (GeoDataFrame): Points used for KDE.
+    """
+    from sklearn.neighbors import KernelDensity
+    import numpy as np
+    from shapely.geometry import Point
+
+    rng = np.random.default_rng(random_state)
+    sample_points = []
+
+    for idx, row in blocks_gdf.iterrows():
+        pop = int(row["POP20"])
+        geom = row.geometry
+        if pop <= 0 or geom.is_empty:
+            continue
+        n_samples = max(1, int(pop * n_samples_per_person))
+        minx, miny, maxx, maxy = geom.bounds
+        count = 0
+        attempts = 0
+        while count < n_samples and attempts < n_samples * 10:
+            x = rng.uniform(minx, maxx)
+            y = rng.uniform(miny, maxy)
+            pt = Point(x, y)
+            if geom.contains(pt):
+                sample_points.append([x, y])
+                count += 1
+            attempts += 1
+
+    sample_points = np.array(sample_points)
+    kde = KernelDensity(bandwidth=bandwidth, kernel="gaussian")
+    kde.fit(sample_points)
+
+    return kde
+
+def estimate_population_in_catchments(kde, points_gdf, catchment_radius=500, grid_resolution=100):
+    """
+    Estimate the total population within the union of all catchment areas around points using a KDE.
+
+    Args:
+        kde (KernelDensity): Fitted sklearn KernelDensity object (people per m^2).
+        points_gdf (GeoDataFrame): Points (geometry column, in EPSG:3857).
+        catchment_radius (float): Radius of each catchment area in meters.
+        grid_resolution (int): Number of grid points per catchment diameter (higher = more accurate).
+
+    Returns:
+        float: Estimated total population within all catchment areas (overlap not corrected).
+    """
+    import numpy as np
+    from shapely.geometry import Point
+
+    total_population = 0.0
+    for pt in points_gdf.geometry:
+        # Create a grid of points within the catchment circle
+        x0, y0 = pt.x, pt.y
+        x = np.linspace(x0 - catchment_radius, x0 + catchment_radius, grid_resolution)
+        y = np.linspace(y0 - catchment_radius, y0 + catchment_radius, grid_resolution)
+        xx, yy = np.meshgrid(x, y)
+        coords = np.vstack([xx.ravel(), yy.ravel()]).T
+        # Mask to only keep points within the circle
+        mask = np.hypot(coords[:, 0] - x0, coords[:, 1] - y0) <= catchment_radius
+        coords_in_circle = coords[mask]
+        # Evaluate KDE (density in people per m^2)
+        log_density = kde.score_samples(coords_in_circle)
+        density = np.exp(log_density)
+        # Area per grid point
+        area_per_point = (2 * catchment_radius / grid_resolution) ** 2
+        # Sum population in this catchment
+        pop = density.sum() * area_per_point
+        total_population += pop
+    return total_population
