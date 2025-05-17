@@ -31,6 +31,7 @@ Public transportation is a vital component of urban infrastructure, contributing
     \includegraphics[width=0.23\textwidth]{./img/wmata.png}
     \caption{Map of the real-world WMATA transit network in the Washington, DC region.}
     \label{fig:wmata}
+    \Description{A map showing the layout of the WMATA rapid transit network in Washington, DC, with colored lines representing different rail routes and station locations.}
 \end{figure}
 
 A primary goal in designing public transit networks in the U.S. is to reduce car dependency~\cite{lit:us_transit_policy}. However, the Washington Metro has struggled to achieve this, with only about 14\% of commuters in the region using transit~\cite{lit:commute_stats}. Comparable metropolitan areas such as Toronto report higher transit commute shares, while many European and Latin American cities also have significantly higher shares~\cite{lit:toronto}. These statistics are typically limited to work commutes, as data for other trip types is less available~\cite{lit:commute_stats}.
@@ -118,6 +119,7 @@ The first step is to define the study area. Table~\ref{tab:counties} lists the c
     \includegraphics[width=0.3\textwidth]{./img/area_considered.png}
     \caption{Counties and districts considered as part of the Washington, DC metropolitan area.}
     \label{fig:area_considered}
+    \Description{A map highlighting the counties and districts included in the Washington, DC metropolitan area for the study.}
 \end{figure}
 
 Data for the Washington Metropolitan Area is available from Open Data DC, Open Data MD, and the Virginia Open Data Portal~\cite{lit:opendata}. Census block population data is obtained from the US Census Bureau. Transit potential for each block is calculated as population divided by area. Figure~\ref{fig:city_map} shows the census block boundaries used for population and density analysis.
@@ -128,6 +130,7 @@ Data for the Washington Metropolitan Area is available from Open Data DC, Open D
     \includegraphics[width=0.3\textwidth]{./img/city_map.png}
     \caption{Census block map for the Washington, DC area.}
     \label{fig:city_map}
+    \Description{A map showing the boundaries of census blocks in the Washington, DC area, used for population and density analysis.}
 \end{figure}
 
 The census block data is transformed by taking the log of the population density. A recursive spatial tree algorithm identifies the highest-need locations for transit, using a depth of 8. The resulting points represent locations with the highest need for transit based on population. Figure~\ref{fig:point_likelihood} visualizes the transformed census block data used to identify high-need locations for transit.
@@ -138,6 +141,7 @@ The census block data is transformed by taking the log of the population density
     \includegraphics[width=0.3\textwidth]{./img/point_likelihood.png}
     \caption{Transformed census block data representing input to the recursive spatial algorithm.}
     \label{fig:point_likelihood}
+    \Description{A heatmap or point map visualizing transformed census block data, highlighting locations with high need for transit.}
 \end{figure}
 
 This data is augmented with points for important destinations, as shown in Table~\ref{tab:datasources}. The selection reflects the availability of data from each source. The study also includes all bus and rail stops in the counties listed, to approximate areas of high transit importance.
@@ -152,6 +156,7 @@ A kernel density estimate (KDE) is constructed over the selected points to provi
     \includegraphics[width=0.3\textwidth]{./img/kde.png}
     \caption{Kernel density estimation (KDE) heatmap of population and transit demand in the Washington, DC region.}
     \label{fig:kde_heatmap}
+    \Description{A heatmap showing the kernel density estimation of population and transit demand across the Washington, DC region.}
 \end{figure}
 
 
@@ -168,6 +173,7 @@ With the data fully preprocessed, one of three network construction algorithms i
     \includegraphics[width=0.3\textwidth]{./img/graph.png}
     \caption{Contracted Gabriel graph representing the search space for network generation.}
     \label{fig:contracted_gabriel}
+    \Description{A network graph visualization showing the contracted Gabriel graph used as the search space for transit network generation.}
 \end{figure}
 
 
@@ -209,6 +215,7 @@ Station names are assigned by proximity to neighborhood centroids, using data fr
     \includegraphics[width=0.3\textwidth]{./img/voronoi.png}
     \caption{Voronoi polygons constructed around neighborhood centroids in the study area.}
     \label{fig:voronoi}
+    \Description{A map showing Voronoi polygons around neighborhood centroids, used to analyze neighborhood coverage and spatial equity.}
 \end{figure}
 
 
@@ -257,6 +264,7 @@ The web application's interface centers around a mapping tool powered by Leaflet
     \includegraphics[width=0.3\textwidth]{./img/itin_1_gen.png}
     \caption{Transit Network Viewer in route finder mode, showing the map interface and selected route.}
     \label{fig:viewer_map}
+    \Description{A screenshot of the Transit Network Viewer web application in route finder mode, displaying a map with a selected transit route.}
 \end{figure}
 
 \begin{figure}[h]
@@ -264,6 +272,7 @@ The web application's interface centers around a mapping tool powered by Leaflet
     \includegraphics[width=0.3\textwidth]{./img/itin_1_gen_details.png}
     \caption{Transit Network Viewer itinerary details window for the selected route.}
     \label{fig:viewer_details}
+    \Description{A screenshot showing the itinerary details window in the Transit Network Viewer, listing route, stations, and travel time.}
 \end{figure}
 
 The most important feature of the Transit Network Viewer is the Route Finder, which users can use to calculate the travel time between selected start and end locations. The route is determined using Dijkstra's algorithm, with a penalty incurred for every time a route requires a transfer. If the user selects start and end locations that are not at stations, walking time estimates are included for the parts of the itinerary both before and after the trip through the metro network. If an itinerary is found, a window displays the details of the itinerary, including the route required, the number of stations the route passes through, the total distance traveled, and the estimated travel time. The travel time calculation uses an average speed across the network of 80 km/h, 6 minutes per transfer, and a walking speed of 5 km/h. 
@@ -278,6 +287,7 @@ I analyze the success of the networks quantitatively using several metrics. Firs
     \includegraphics[width=0.3\textwidth]{./img/gen.png}
     \caption{Transit network generated by the genetic algorithm.}
     \label{fig:genetic_network}
+    \Description{A map visualizing the transit network generated by the genetic algorithm, with lines and stations highlighted.}
 \end{figure}
 
 \begin{figure}[h]
@@ -285,6 +295,7 @@ I analyze the success of the networks quantitatively using several metrics. Firs
     \includegraphics[width=0.3\textwidth]{./img/iter.png}
     \caption{Transit network generated by the iterative improvement algorithm.}
     \label{fig:iterative_network}
+    \Description{A map visualizing the transit network generated by the iterative improvement algorithm, with lines and stations highlighted.}
 \end{figure}
 
 \begin{figure}[h]
@@ -292,6 +303,7 @@ I analyze the success of the networks quantitatively using several metrics. Firs
     \includegraphics[width=0.3\textwidth]{./img/naive.png}
     \caption{Transit network generated by the naive (random walk) algorithm.}
     \label{fig:naive_network}
+    \Description{A map visualizing the transit network generated by the naive (random walk) algorithm, with lines and stations highlighted.}
 \end{figure}
 
 \begin{table*}[h]
