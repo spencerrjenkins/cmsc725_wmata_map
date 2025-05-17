@@ -1,49 +1,3 @@
-%%
-%% This is file `sample-manuscript.tex',
-%% generated with the docstrip utility.
-%%
-%% The original source files were:
-%%
-%% samples.dtx  (with options: `all,proceedings,bibtex,manuscript')
-%% 
-%% IMPORTANT NOTICE:
-%% 
-%% For the copyright see the source file.
-%% 
-%% Any modified versions of this file must be renamed
-%% with new filenames distinct from sample-manuscript.tex.
-%% 
-%% For distribution of the original source see the terms
-%% for copying and modification in the file samples.dtx.
-%% 
-%% This generated file may be distributed as long as the
-%% original source files, as listed above, are part of the
-%% same distribution. (The sources need not necessarily be
-%% in the same archive or directory.)
-%%
-%%
-%% Commands for TeXCount
-%TC:macro \cite [option:text,text]
-%TC:macro \citep [option:text,text]
-%TC:macro \citet [option:text,text]
-%TC:envir table 0 1
-%TC:envir table* 0 1
-%TC:envir tabular [ignore] word
-%TC:envir displaymath 0 word
-%TC:envir math 0 word
-%TC:envir comment 0 0
-%%
-%% The first command in your LaTeX source must be the \documentclass
-%% command.
-%%
-%% For submission and review of your manuscript please change the
-%% command to \documentclass[manuscript, screen, review]{acmart}.
-%%
-%% When submitting camera ready or to TAPS, please change the command
-%% to \documentclass[sigconf]{acmart} or whichever template is required
-%% for your publication.
-%%
-%%
 \documentclass[manuscript,nonacm]{acmart}
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
@@ -51,81 +5,19 @@
   \providecommand\BibTeX{{%
     Bib\TeX}}}
 
-%% Rights management information.  This information is sent to you
-%% when you complete the rights form.  These commands have SAMPLE
-%% values in them; it is your responsibility as an author to replace
-%% the commands and values with those provided to you when you
-%% complete the rights form.\
 
-
-%%
-%% Submission ID.
-%% Use this when submitting an article to a sponsored event. You'll
-%% receive a unique submission ID from the organizers
-%% of the event, and this ID should be used as the parameter to this command.
-%%\acmSubmissionID{123-A56-BU3}
-
-%%
-%% For managing citations, it is recommended to use bibliography
-%% files in BibTeX format.
-%%
-%% You can then either use BibTeX with the ACM-Reference-Format style,
-%% or BibLaTeX with the acmnumeric or acmauthoryear sytles, that include
-%% support for advanced citation of software artefact from the
-%% biblatex-software package, also separately available on CTAN.
-%%
-%% Look at the sample-*-biblatex.tex files for templates showcasing
-%% the biblatex styles.
-%%
-%%
-%% The majority of ACM publications use numbered citations and
-%% references.  The command \citestyle{authoryear} switches to the
-%% "author year" style.
-%%
-%% If you are preparing content for an event
-%% sponsored by ACM SIGGRAPH, you must use the "author year" style of
-%% citations and references.
-%% Uncommenting
-%% the next command will enable that style.
-%%\citestyle{acmauthoryear}
-
-
-%%
-%% end of the preamble, start of the body of the document source.
 \begin{document}
 
-%%
-%% The "title" command has an optional parameter,
-%% allowing the author to define a "short title" to be used in page headers.
 \title{Reimagining Transit Networks: A Data-Driven, Algorithmic Approach for the Washington DC Region}
 
-%%
-%% The "author" command and its associated commands are used to define
-%% the authors and their affiliations.
-%% Of note is the shared affiliation of the first two authors, and the
-%% "authornote" and "authornotemark" commands
-%% used to denote shared contribution to the research.
 \author{Spencer Jenkins}
 
-
-%%
-%% By default, the full list of authors will be used in the page
-%% headers. Often, this list is too long, and will overlap
-%% other information printed in the page headers. This command allows
-%% the author to define a more concise list
-%% of authors' names for this purpose.
 \renewcommand{\shortauthors}{Trovato et al.}
 
-%%
-%% The abstract is a short summary of the work to be presented in the
-%% article.
 \begin{abstract}
 This paper presents a computational framework for the design of a reimagined rapid transit network for the Washington, DC metropolitan area. Motivated by the historical context and limitations of the existing WMATA system, my approach leverages geospatial analysis, graph algorithms, and data visualization to generate and evaluate alternative transit networks. The project consists of a transit network development pipeline, and a program to visualize and evaluate the generated networks. I describe the data sources, algorithms, and evaluation metrics used, and discuss the implications of my results for urban mobility and equity.
 \end{abstract}
 
-%%
-%% This command processes the author and affiliation and title
-%% information and builds the first part of the formatted document.
 \maketitle
 
 
@@ -144,7 +36,13 @@ This design ethos limits practical use. The network makes suburb-to-suburb and c
 
 The persistent gaps in the current network's ability to connect high-density and underserved regions further motivate a new approach. For example, the lack of direct connections between major suburban job centers or marginalized neighborhoods limits economic opportunity and social inclusion~\cite{lit:equity}. Existing evaluation frameworks may overlook these gaps, focusing on aggregate metrics that mask disparities in access and service quality. 
 
-To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. This project leverages core concepts from CMSC 725, including spatial data structures (such as quadtrees and B-trees), proximity graphs, and efficient spatial querying, to address the challenges of transit network design. The methodology integrates geospatial analysis, graph algorithms, and data-driven optimization to generate and evaluate alternative transit networks for the Washington, DC region. By applying techniques from the course, such as kernel density estimation for spatial demand modeling and the use of Gabriel graphs for candidate network construction, the project demonstrates the power of computational geometry and geospatial algorithms in solving real-world urban problems.
+To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. This project relates to this class through Tons of geographic data manipulation
+Interaction with map-based software
+Tree-inspired algorithm (choose which census blocks)
+Geographic querying (station name choice, filtering input data)
+Route finding (although my algorithm is relatively simple)
+Lots of data structure runtime vs. memory use considerations while writing code (the random walk algorithm stores the forward- and backward pass for easy reference!)
+
 
 % --- Table: Counties and FIPS codes ---
 
@@ -275,7 +173,7 @@ Each walk represents a candidate metro line. Lines are grouped by shared alignme
 
 Not all nodes in the contracted Gabriel graph become stations due to varying edge lengths. Stations are selected as all terminal nodes, transfer points between different line groups, and nodes spaced at least 1 km apart. This ensures each station serves a catchment area of roughly 500 meters, corresponding to a 15-minute walk.
 
-Station names are assigned by proximity to neighborhood centroids, using data from Arlington County, Maryland, and the District of Columbia. If multiple stations fall within the same neighborhood, a numeric suffix is added.
+Station names are assigned by proximity to neighborhood centroids, using data from Arlington County, Maryland, and the District of Columbia. If multiple stations fall within the same neighborhood, a numeric suffix is added. I was unable to find neighborhood name or boundary data for for other parts of Virginia.
 
 \subsection{Benchmarks and Evaluation Criteria}
 Candidate networks are evaluated using benchmarks that reflect practical and theoretical priorities: geographic coverage (fraction of high-demand areas served), network connectivity (linking major regions), efficiency (minimizing redundant or excessively long lines), and demand capture (maximizing KDE-weighted coverage). These metrics are computed for each network and inform both random walk scoring and the genetic algorithm's fitness function.
@@ -317,50 +215,37 @@ Genetic: diversity incentive weight & Incentive for diversity in population & -1
     \label{fig:schematic2}
 \end{figure}
 
-\section{Network Visualization and Evaluation}
+\section{Network Visualization and Exploration}
 
-Analysis and evaluation of the networks generated by these methods is done using a web application powered by Leaflet. The lines are shown over the metropolitan area map, with lines of the same group visualized in the same color. Visualization for the networks produced by each of the three methods can be selected. For visual comparison, I load the real-world transit network, which I am here defining as the existing and under-construction rail transport services as of 2025. These services, along with their type, length, number of lines and ridership, are provided in Table 2. I also provide the ability to view 500-meter station catchment areas for each line, helping aid the user to see what areas are best served by each station. The visualization app includes a route-finding feature, allowing the user to determine travel times and routes for the given network.
+The Transit Network Viewer application, developed as a part of this project, allows users to visualize and explore the networks created using the algorithms designed in this project. The web application is highly interactive, allowing users to compare networks, examine specific lines, view station names, and determine estimated travel times. 
 
-\subsection{Quantitative Metrics for Network Assessment}
-A rigorous evaluation of transit network designs requires the use of multiple quantitative metrics that capture distinct aspects of network performance. The primary metrics considered in this study include geographic coverage, demand capture, network connectivity, efficiency, and redundancy. Geographic coverage is measured as the proportion of high-demand areas (as identified by KDE) that are within a specified distance of a transit station. Demand capture extends this by weighting coverage according to the KDE score, thus prioritizing areas with the greatest latent transit need. Network connectivity is assessed using graph-theoretic measures such as the size of the largest connected component, average path length, and the number of transfers required for typical journeys. Efficiency is evaluated by examining the total length of the network, the average and maximum line lengths, and the degree of overlap between lines. Redundancy, while sometimes desirable for resilience, is penalized if it results in excessive duplication of service or inefficient use of resources. These metrics are computed for each candidate network and are used to guide both the iterative improvement of solutions and the final selection of preferred designs.
+The web application's interface centers around a mapping tool powered by Leaflet. The interactive map displays the networks outputted by each of the three algorithms. Users can use checkboxes below the map to choose to view or hide specific lines, show the real-world transit network for comparison, view the catchment areas for each station, or view the contracted Gabriel graph used to generate the network. Users can hover over the transit lines, colored by group, to see helpful tooltips including their start and end locations, total distance, and number of stations. Users can hover the mouse over stations to see their name, lines served, and score. 
 
-\subsection{Comparative Analysis of Random Walk and Genetic Algorithm Networks}
+The most important feature of the Transit Network Viewer is the Route Finder, which users can use to calculate the travel time between selected start and end locations. The route is determined using Dijkstra's algorithm, with a penalty incurred for every time a route requires a transfer. If the user selects start and end locations that are not at stations, walking time estimates are included for the parts of the itinerary both before and after the trip through the metro network. If an itinerary is found, a window displays the details of the itinerary, including the route required, the number of stations the route passes through, the total distance traveled, and the estimated travel time. The travel time calculation uses an average speed across the network of 80 km/h, 6 minutes per transfer, and a walking speed of 5 km/h. 
 
-\subsection{User Interaction and Route Simulation}
-A unique feature of my framework is the ability to simulate passenger journeys on the generated networks, providing insights into travel times, transfer requirements, and accessibility. The route finder tool in the web application allows users to select origin and destination points, either by clicking on the map or by choosing from a list of stations. The underlying algorithm computes the shortest path between the selected points, taking into account the current network configuration, line visibility, and transfer penalties. Travel time is estimated based on a combination of line speed, station dwell times, and transfer delays, with parameters calibrated to reflect typical rapid transit operations (e.g., 80 km/h line speed, 0.4 minutes per station, 6 minutes per transfer). The tool also visualizes the selected route, highlights the lines used, and provides a textual summary of the journey. This interactive simulation enables both experts and lay users to explore the practical implications of different network designs, identify potential bottlenecks or gaps in service, and suggest targeted improvements.
+\section{Network Performance Analysis}
 
-\subsection{Comparison with Existing Transit Networks}
-To contextualize the performance of the generated networks, I compare them with the existing WMATA Metro and regional rail systems. Real-world network data is loaded into the web application and displayed alongside the candidate designs, allowing for direct visual and quantitative comparison. Key differences are highlighted, such as the improved connectivity between suburban job centers, the extension of service to previously underserved neighborhoods, and the reduction in required transfers for common journeys. Quantitative metrics are computed for both the generated and real-world networks, revealing areas where the new designs offer substantial gains in coverage, demand capture, or efficiency. At the same time, the comparison exposes challenges such as the need for additional infrastructure, the potential for increased operational complexity, and the importance of integrating new lines with existing services. By situating the generated networks within the broader context of regional transit, I provide a realistic assessment of their feasibility and impact.
-
-\subsection{Limitations and Future Directions}
-While the results presented here demonstrate the potential of programmatic, data-driven network design, several limitations must be acknowledged. First, the analysis is based on static snapshots of population and demand, without accounting for temporal dynamics such as population growth, land use change, or evolving travel patterns. Second, the KDE-based demand model, while effective for identifying hotspots, does not capture all relevant factors influencing transit use, such as income, car ownership, or employment density. Third, the network generation algorithms, though powerful, are subject to parameter choices and may not fully explore the space of feasible solutions. Finally, the evaluation metrics, while comprehensive, may not capture all aspects of user experience or operational practicality. Future work will address these limitations by incorporating dynamic data sources, refining the demand model, exploring alternative optimization algorithms (such as reinforcement learning or graph neural networks), and engaging with stakeholders to validate and refine the network designs.
-
-\subsection{Summary}
-In summary, the evaluation and visualization of candidate transit networks provide a robust foundation for data-driven decision-making in urban transportation planning. By combining quantitative metrics, interactive tools, and comparative analysis, my framework enables the systematic exploration of alternative network designs and supports the identification of solutions that maximize connectivity, coverage, and equity. The integration of these methods into an open-source, extensible platform ensures that the results are transparent, reproducible, and adaptable to the evolving needs of metropolitan regions.
-
-\section{Results and Discussion}
-
-Visual comparison of the three obtained networks demonstrates pros and cons of each. The naive algorithm takes the least time to execute, as it simply involves performing 20 random walks across the network. The network has strong suburb-to-suburb connection, and also has a few strong connections in the urban core, but there are some large underserved areas. This is likely because the search space is simply too large to ensure that random walks will construct a network that covers it sufficiently.
-
-The iterative improvement algorithm takes the most time to execute, but provides a much more robust and connective network, especially in the urban core. The network has strong connections between suburbs and the urban core, but suburb-to-suburb connections are more limited. This is likely because the reward mechanism simply rewards routes with higher score sums for all stations across the line, so routes that gain a high increase in score due to being very long and travelling through DC are selected for.
-
-The genetic algorithm is the most sophisticated, and its output reflects this. There are strong connections between the urban core and suburbs in all directions
-
+I analyze the success of the networks quantitatively using several metrics. First, I determine the critical coverage percentage by calculating the proportion of critical transit points (high-density census blocks, critical services) that fall within the catchment area of any station in the network. The neighborhood coverage percentage is the fraction of neighborhood centroids within the catchment areas of at least one station. I also take the average distance from the nearest station across the entire metropolitan area and for the District of Columbia. Table \ref{tab:networkmetrics} provides the calculated data for the networks I created using each algorithm, and for the real-world WMATA network.
 
 \begin{table}[h]
 \caption{Comparison of Network Designs on Key Metrics}
 \label{tab:networkmetrics}
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Network} & \textbf{\% Critical Points Covered} & \textbf{\% Neighborhoods Covered} & \textbf{Avg. Distance (km), Metro Area} & \textbf{Avg. Distance (km), DC} \\
+\textbf{Network} & \textbf{\% Critical Coverage} & \textbf{\% Neighborhood Coverage} & \textbf{Avg. dist, regional} & \textbf{Avg. dist, DC} \\
 \midrule
 Genetic & 17.47 & 6.61 & 11.03 & 0.92 \\
 Iterative & 24.12 & 4.96 & 11.19 & 1.67 \\
 Naive & 18.95 & 3.99 & 10.86 & 1.59 \\
+\midrule
 Real-world & 13.39 & 3.03 & 14.94 & 1.59 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+By the metrics established in this table, the networks produced by all three algorithms outperform the real-world network. They exhibit higher critical coverage and neighborhood coverage rates, and provide lower average distances across the region. Each algorithm performs most strongly in a different metric: the genetic algorithm performs most strongly in neighborhood coverage and average distance within DC, while the naive algorithm shows the lowest average distance across the entire region, and the iterative improvement algorithm shows the highest critical coverage. 
+
+I also perform some potential use-case evaluation by identifying location pairs and calculating the transit time in each network. I calculate the transit times for my network using my Route Planner tool, and I calculate transit times for the real-world network using the WMATA transit planner application. In this report I compare the results obtained for three sample itineraries chosen to demonstrate a variety of transit uses and to address the shortcomings of the existing WMATA network that I raised in the introduction. The three routes presented in this paper are: College Park to DCA Airport (suburb to important hub), downtown Bethesda to Reston Center (suburb to suburb), and Congress Heights to downtown Silver Spring (disadvantaged neighborhood to suburb). For all three routes, the algorithms developed in this project provide faster transit times than the real-world network, with each algorithm having stronger performance on different routes. Table \ref{tab:transittimes} shows the travel times calculated for each network. 
 
 % --- Table: Sample Transit Times ---
 \begin{table}[h]
@@ -368,32 +253,27 @@ Real-world & 13.39 & 3.03 & 14.94 & 1.59 \\
 \label{tab:transittimes}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Network} & \textbf{College Park → DCA} & \textbf{Bethesda → Travilah} & \textbf{Congress Heights → Silver Spring} \\
+\textbf{Network} & \textbf{College Park → DCA} & \textbf{Bethesda → Reston} & \textbf{Congress Heights → Silver Spring} \\
 \midrule
-DC Metro Trip Planner & 43 min & No route found & 41 min \\
-Naive & 32 min & 32 min & 17 min \\
-Naive + Iterations & 37 min & 1 hr 1 min & 19 min \\
 Genetic & 29 min & 41 min & 30 min \\
+Iterative & 37 min & 1 hr 1 min & 19 min \\
+Naive & 32 min & 32 min & 17 min \\
+\midrule
+Real-world & 43 min & 1 hr 7 min & 41 min \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Overview of Results}
-For example, the best genetic algorithm network achieved geographic coverage of 87.2\% of high-demand census blocks (within 1 km of a station), compared to 68.5\% for the current Metro. Demand capture, as measured by KDE-weighted coverage, increased by 24.6\% over the baseline. The average number of transfers required for cross-regional trips decreased from 2.1 in the existing network to 1.4 in the optimized designs, indicating improved directness and reduced travel friction. Network connectivity, as measured by the size of the largest connected component and average path length, also improved, with the largest component encompassing 98.3\% of all candidate stations and the average shortest path length reduced by 18.7\%. These results demonstrate the effectiveness of the computational framework in generating networks that are both more inclusive and more efficient than the legacy system.
+Visual comparison of the three obtained networks can provide additional justification and insight. The network has strong suburb-to-suburb connection, and also has a few strong connections in the urban core, but there are some large underserved areas. This is likely because the search space is simply too large to ensure that random walks will construct a network that covers it sufficiently. This likely explains its low performance in neighborhood coverage and average station distance within DC.
 
-\subsection{Spatial Patterns and Equity Impacts}
-A detailed spatial analysis of the generated networks reveals several important patterns. The new lines provide direct connections between major suburban job centers, such as Tysons Corner, Bethesda, and Silver Spring, which are poorly served by the current radial network. Previously underserved neighborhoods, including Anacostia, Georgetown, and parts of Prince George's County, are now within easy reach of rapid transit, with station catchment areas overlapping high-KDE demand hotspots. The distribution of stations is more uniform across the metropolitan area, reducing the average distance to the nearest station from 1.7 km (existing) to 1.1 km (optimized). Importantly, the networks avoid excessive redundancy, with only 6.3\% of edges duplicated across multiple lines, compared to 14.8\% in the current system. This suggests a more efficient allocation of infrastructure and operational resources. The improved spatial equity is further supported by demographic overlays, which show increased coverage of low-income and minority communities, addressing long-standing gaps in transit access.
+The iterative improvement algorithm takes the most time to execute, but provides a much more robust and connective network, especially in the urban core. The network has strong connections between suburbs and the urban core, but suburb-to-suburb connections are more limited. This is likely because the reward mechanism simply rewards routes with higher score sums for all stations across the line, so routes that gain a high increase in score due to being very long and travelling through DC are selected for. This likely explains its high critical coverage rate.
 
-\subsection{Efficiency, Redundancy, and Robustness}
-Efficiency is a critical consideration in transit network design, as it directly impacts both capital costs and operational sustainability. The optimized networks achieve a balance between coverage and efficiency, with total network length increasing by only 12.4\% relative to the existing Metro, despite a 27.9\% increase in the number of stations. The average line length is 23.6 km, with a standard deviation of 4.2 km, indicating a relatively uniform distribution of service. Redundancy, measured as the proportion of edges shared by multiple lines, is kept in check by the fitness function penalties in the genetic algorithm, ensuring that resources are not wasted on unnecessary duplication. Robustness is assessed by simulating random node and edge failures; the optimized networks maintain 91.5\% of their original connectivity under random node removal (10\% of nodes), compared to 78.2\% for the current system. This suggests that the new designs are not only more efficient but also more resilient to disruptions, a key consideration for real-world implementation.
-
-\subsection{Comparison with Real-World Networks}
-Direct comparison with the existing WMATA Metro and regional rail systems highlights the practical benefits of the generated networks. The new designs provide 19 additional direct suburb-to-suburb connections, reducing the need for time-consuming transfers at central hubs. The number of unique neighborhoods with at least one station increases from 62 to 89, and the proportion of the population within a 1 km catchment area rises from 54.3\% to 73.8\%. Travel time simulations for common origin-destination pairs show average reductions of 11.6 minutes per trip, with the largest gains observed for cross-town and circumferential journeys. The networks also demonstrate improved integration with existing infrastructure, as lines are aligned to facilitate transfers to commuter rail, bus rapid transit, and major employment centers. These improvements are achieved without a disproportionate increase in network complexity or operational burden, as measured by the number of required trainsets and the average number of lines per station.
+The genetic algorithm is the most sophisticated, and its output reflects this. There are strong connections between the urban core and suburbs in all directions, and coverage within the District of Columbia is strong as well. This is likely because of the service pattern reward weight, rewarding for routes that serve the urban core with connections to suburban areas. The high neighborhood coverage rate and low average distance within DC are likely due to this.
 
 \subsection{Limitations}
 The quality of the networks generated using my pipeline are only as good as the data they are created from. As discussed earlier, the data portals for each of the states varied wildly with respect to data depth and breadth. Virginia, in particular, did not have nearly as much data containing locations of areas supported by transit. Maryland and Washington, D.C. both had much more comprehensive data resources, which is expected given that Washington, D.C. is a single municipal jurisdiction and Maryland is a relatively small state mostly centered around a single metropolitan area. Virginia, on the other hand, is a large state with many metropolitan areas, and the data reflected this. There were often data of the sort I was interested in, but only for one or two counties and outside the DC area. 
 
-The method of combining point data from multiple sources and creating a KDE from multiple sources entailed several limitations: first, each data point was treated as having the same transit importance, and the KDE therefore acted as a map of the amount of points in a given area. This means that the KDE scoring returned high values for regions that were well covered by the existing data, and low values for those with poor coverage, and no weight to whatever relative importance may have existed between points. The overall takeaway is that the transit algorithm happened to produce plausible-looking maps not as a reflection of the data, but because I constrained an otherwise random algorithm to produce results that look plausible. Across the three algorithms, I received wildly different results that often left many densely populated neighborhoods underserved. On the other hand, across algorithms, I obtained similar travel times between destination pairs, which is likely because with sufficient density, the network is large enough that one- or two-transfer routes on fairly straight alignments are possible between most urban destinations.
+The method of combining point data from multiple sources and creating a KDE from multiple sources entailed several limitations: first, each data point was treated as having the same transit importance, and the KDE therefore acted as a map of the amount of points in a given area. This means that the KDE scoring returned high values for regions that were well covered by the existing data, and low values for those with poor coverage, and no weight to whatever relative importance may have existed between points. The overall takeaway is that the transit algorithm happened to produce plausible-looking maps not as a reflection of the data, but because I constrained an otherwise random algorithm to produce results that look plausible. Across the three algorithms, I received wildly different results that often left many densely populated neighborhoods underserved. On the other hand, across algorithms, I obtained similar travel times between destination pairs, which is likely because with sufficient density, the network is large enough that one- or two-transfer routes on fairly straight alignments are possible between most urban destinations. It is also important to note that my network's reported high performance as compared to the real-world network is also likely largely attributable to the length and number of lines. Each algorithm produces a 20-line network, as compared to the real-world network which has six lines. 
 
 In general, the method I have created in this project does not largely reflect the priorities or procedures of real-world transit agencies. Transit networks are not decided by random algorithms applied across entire metropolitan areas. The search space of the problem is still too great; there were not enough hard constraints on which areas the network should have connected. The result is a network that reaches most necessary areas because the number of randomly-generated lines is high enough. 
 
