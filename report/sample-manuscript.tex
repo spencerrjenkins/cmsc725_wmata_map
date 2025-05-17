@@ -24,8 +24,6 @@ This paper presents a computational framework for the design of a reimagined rap
 
 \section{Introduction}
 
-This project was completed for CMSC 725: Geospatial Algorithms and Data, taught by Professor Hanan Samet.
-
 Public transportation is a vital component of urban infrastructure, contributing to economic productivity~\cite{lit:us_transit_policy}, social equity~\cite{lit:equity}, and environmental sustainability~\cite{lit:us_transit_policy} in metropolitan areas. Washington, DC, and its surrounding areas in Maryland and Virginia, comprise the second-largest rapid transit network in the United States by daily ridership~\cite{lit:wmata_stats}. The network consists of six heavy rail lines spanning 208 kilometers and connecting 98 stations, operated by the Washington Metropolitan Area Transit Authority (WMATA)~\cite{lit:wmata_stats}. In 2019, the Washington Metro provided over 160 million trips per year, including work commutes, tourism, and other purposes~\cite{lit:wmata_stats}. Figure~\ref{fig:wmata} provides a reference for the existing transit network, which is compared to the generated networks throughout this study. 
 % --- Figure: Real-World Transit Network ---
 \begin{figure}[h]
@@ -43,7 +41,7 @@ This design philosophy limits practical use. The network makes suburb-to-suburb 
 
 The persistent gaps in the current network's ability to connect high-density and underserved regions further motivate a new approach. For example, the lack of direct connections between major suburban job centers or marginalized neighborhoods limits economic opportunity and social inclusion~\cite{lit:equity}. Existing evaluation frameworks may overlook these gaps, focusing on aggregate metrics that mask disparities in access and service quality.
 
-To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. 
+To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region.
 
 
 % --- Table: Counties and FIPS codes ---
@@ -57,18 +55,21 @@ To address these challenges, this study combines computational and geospatial te
 \toprule
 County/Equivalent & 2020 Population & Density (per km$^2$) & FIPS Code \\
 \midrule
-Prince George's & [value] & [value] & [value] \\
-Montgomery & [value] & [value] & [value] \\
-District of Columbia & [value] & [value] & [value] \\
-Arlington County & [value] & [value] & [value] \\
-Alexandria City & [value] & [value] & [value] \\
-Falls Church City & [value] & [value] & [value] \\
-Fairfax County & [value] & [value] & [value] \\
-Fairfax City & [value] & [value] & [value] \\
-Loudoun County & [value] & [value] & [value] \\
+Prince George's & 967,201 & 687 & 24033 \\
+Montgomery & 1,062,061 & 849 & 24031 \\
+District of Columbia & 689,545 & 4,457 & 11001 \\
+Arlington County & 238,643 & 3,672 & 51013 \\
+Alexandria City & 159,467 & 4,293 & 51510 \\
+Falls Church City & 14,658 & 2,651 & 51610 \\
+Fairfax County & 1,150,309 & 1,184 & 51059 \\
+Fairfax City & 24,146 & 1,563 & 51600 \\
+Loudoun County & 420,959 & 334 & 51107 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+% Add citation for census data
+\noindent\textit{Source: U.S. Census Bureau, QuickFacts, 2020 Census Redistricting Data (Public Law 94-171) Summary File~\cite{lit:census}.} 
 
 % --- Table: Data Sources ---
 
