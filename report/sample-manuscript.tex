@@ -1,4 +1,6 @@
 \documentclass[sigconf,nonacm]{acmart}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
 \AtBeginDocument{%
@@ -129,7 +131,44 @@ Data for the Washington Metropolitan Area is available from Open Data DC, Open D
     \Description{A map showing the boundaries of census blocks in the Washington, DC area, used for population and density analysis.}
 \end{figure}
 
-The census block data is transformed by taking the log of the population density. A recursive spatial tree algorithm identifies the highest-need locations for transit, using a depth of 8. The resulting points represent locations with the highest need for transit based on population. Figure~\ref{fig:point_likelihood} visualizes the transformed census block data used to identify high-need locations for transit.
+The census block data is transformed by taking the log of the population density. A recursive spatial tree algorithm identifies the highest-need locations for transit, using a depth of 8, and detailed in Figure \ref{fig:get_points_pseudocode}. The resulting points represent locations with the highest need for transit based on population. Figure~\ref{fig:point_likelihood} visualizes the transformed census block data used to identify high-need locations for transit.
+
+\begin{figure}[h]
+\centering
+\begin{minipage}{1\linewidth}
+\begin{algorithmic}
+\Function{GetPoints}{DataFrame $D$, Box $E$, Integer $L$}
+    \State Initialize list $IDs \gets [\ ]$
+    \If{$L \leq 0$ or number of rows in $D < 2$}
+        \State \Return $IDs$
+    \EndIf
+    \State Sort $D$ by \texttt{point\_likelihood} descending
+    \State $P \gets$ second row in sorted $D$
+    \State Append $P.\texttt{SID}$ to $IDs$
+    \State Define sub-boxes using $P$:
+    \State \hspace{1em} $E_{BL} \gets$ bottom-left quadrant of $E$ below and left of $P$
+    \State \hspace{1em} $E_{BR} \gets$ bottom-right quadrant of $E$ below and right of $P$
+    \State \hspace{1em} $E_{TL} \gets$ top-left quadrant of $E$ above and left of $P$
+    \State \hspace{1em} $E_{TR} \gets$ top-right quadrant of $E$ above and right of $P$
+    \State Query $D$ for points in each quadrant:
+    \State \hspace{1em} $D_{BL} \gets D$ in $E_{BL}$
+    \State \hspace{1em} $D_{BR} \gets D$ in $E_{BR}$
+    \State \hspace{1em} $D_{TL} \gets D$ in $E_{TL}$
+    \State \hspace{1em} $D_{TR} \gets D$ in $E_{TR}$
+    \State Recursively collect points:
+    \State \hspace{1em} $IDs \gets IDs +$
+    \State \hspace{2em} \Call{GetPoints}{$D_{BL}, E_{BL}, L - 1$} $+$
+    \State \hspace{2em} \Call{GetPoints}{$D_{BR}, E_{BR}, L - 1$} $+$
+    \State \hspace{2em} \Call{GetPoints}{$D_{TL}, E_{TL}, L - 1$} $+$
+    \State \hspace{2em} \Call{GetPoints}{$D_{TR}, E_{TR}, L - 1$}
+    \State \Return $IDs$
+\EndFunction
+\end{algorithmic}
+\caption{Recursive spatial decomposition and top-point selection in a 2-D geographic space.}
+\label{fig:get_points_pseudocode}
+\end{minipage}
+\Description{Points algorithm.}
+\end{figure}
 
 % --- Figure: Transformed Census Block Data ---
 \begin{figure}[ht]
@@ -141,8 +180,6 @@ The census block data is transformed by taking the log of the population density
 \end{figure}
 
 This data is augmented with points for important destinations, as shown in Table~\ref{tab:datasources}. The selection reflects the availability of data from each source. The study also includes all bus and rail stops in the counties listed, to approximate areas of high transit importance.
-
-Raw data is transformed for network analysis using \texttt{geopandas}, with all data projected to a common CRS (typically EPSG:3857). Centroids are calculated for each census block and other points, providing candidate locations for potential stations. Unique identifiers and relevant attributes are assigned to each spatial unit. Intermediate results are saved as GeoJSON files for reproducibility and efficient reloading. This preprocessing pipeline, implemented in \texttt{eda.ipynb} and \texttt{funcs.py}, ensures the data is clean, consistent, and ready for network construction.
 
 A kernel density estimate (KDE) is constructed over the selected points to provide scores for spatial queries at several stages. Figure~\ref{fig:kde_heatmap} displays the KDE heatmap used to model spatial demand for transit.
 
@@ -175,9 +212,47 @@ With the data fully preprocessed, one of three network construction algorithms i
 
 \subsection{Network Creation: Naive (Random Walk) Algorithm}
 
-The naive method involves constrained walks through the graph. Each walk starts from a random, previously unexplored node and follows the available edge leading to the greatest score. For each subsequent step, the walk chooses an available edge according to a weighted distribution: 75\% probability for the straightest angle, 25\% for the highest KDE score. Only edges forming at least a 130-degree angle from the previous edge can be chosen, and if the overall trajectory deviates by more than 80 degrees, the walk must proceed down edges that bring the angle back. If the walk reaches a node with no options, it terminates and attempts to continue from the original endpoint in the opposite direction. The walk is only kept if it is within a specified length range (45--100 km).
+The naive method involves constrained walks through the graph. The walk procedure is detailed in Figure \ref{fig:perform_walks_pseudocode}. Each walk starts from a random, previously unexplored node and follows the available edge leading to the greatest score. For each subsequent step, the walk chooses an available edge according to a weighted distribution: 75\% probability for the straightest angle, 25\% for the highest KDE score. Only edges forming at least a 130-degree angle from the previous edge can be chosen, and if the overall trajectory deviates by more than 80 degrees, the walk must proceed down edges that bring the angle back. If the walk reaches a node with no options, it terminates and attempts to continue from the original endpoint in the opposite direction. The walk is only kept if it is within a specified length range (45--100 km).
 
 Edges are available if they are unexplored or have been explored up to three times. This reflects the interlined nature of the WMATA Metro, where several lines share alignments.
+
+\begin{figure}[h]
+\centering
+\begin{minipage}{1\linewidth}
+\begin{algorithmic}
+\Function{PerformWalks}{Graph $G$, Positions $P$, Parameters}
+    \State Initialize $walks$, $threeCount$, $traversedEdges$, $completeTraversedEdges$
+    \For{$i \gets 1$ to $numWalks$}
+        \State Choose random unvisited $start$ node
+        \State Initialize $walk \gets [start]$, $reverseWalk \gets [start]$
+        \State Initialize $distance \gets 0$, $totalTurn \gets 0$, $sign \gets 0$
+        \While{$distance < maxDistance$}
+            \State $(next, deviation, angle) \gets$ \Call{GetNextEdge}{$G, walk[-1], prev, visited, sign$} \State This function chooses an edge based on angle and score
+            \If{no valid $next$ and already reversed}
+                \State \textbf{break}
+            \ElsIf{no valid $next$}
+                \State Reverse walk direction, adjust $sign$
+                \State \textbf{continue}
+            \EndIf
+            \State Extend walk with $next$, update $distance$ and $totalTurn$
+            \State Update $sign$ based on $totalTurn$
+        \EndWhile
+        \If{$distance > minDistance$}
+            \State Append $walk$ to $walks$
+            \State Track traversed edges and update counts
+            \State Add frequently used edges to $traversedEdges$
+        \Else
+            \State Retry with new start node (with timeout)
+        \EndIf
+    \EndFor
+    \State \Return $walks$, $traversedEdges$, $completeTraversedEdges$
+\EndFunction
+\end{algorithmic}
+\caption{Pseudocode for directionally-constrained random walks to generate a transit network over a spatial graph.}
+\label{fig:perform_walks_pseudocode}
+\end{minipage}
+\Description{Walk algorithm}
+\end{figure}
 
 \subsection{Network Creation: Iterative Improvement Algorithm}
 
