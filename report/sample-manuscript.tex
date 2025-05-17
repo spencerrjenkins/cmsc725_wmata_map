@@ -26,7 +26,7 @@ This paper presents a computational framework for the design of a reimagined rap
 
 Public transportation is a vital component of urban infrastructure, contributing to economic productivity~\cite{lit:us_transit_policy}, social equity~\cite{lit:equity}, and environmental sustainability~\cite{lit:us_transit_policy} in metropolitan areas. Washington, DC, and its surrounding areas in Maryland and Virginia, comprise the second-largest rapid transit network in the United States by daily ridership~\cite{lit:wmata_stats}. The network consists of six heavy rail lines spanning 208 kilometers and connecting 98 stations, operated by the Washington Metropolitan Area Transit Authority (WMATA)~\cite{lit:wmata_stats}. In 2019, the Washington Metro provided over 160 million trips per year, including work commutes, tourism, and other purposes~\cite{lit:wmata_stats}. Figure~\ref{fig:wmata} provides a reference for the existing transit network, which is compared to the generated networks throughout this study. 
 % --- Figure: Real-World Transit Network ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.23\textwidth]{./img/wmata.png}
     \caption{Map of the real-world WMATA transit network in the Washington, DC region.}
@@ -83,8 +83,8 @@ Loudoun County & 420,959 & 334 & 51107 \\
 \toprule
 Source & Description \\
 \midrule
-US Census Bureau & Census block population, shapefiles \\
-Open Data DC/MD/VA & Points of interest, transit stops, land use \\
+US Census Bureau & Census blocks \\
+Open Data DC/MD/VA & Points of interest, land use \\
 Arlington County & Neighborhood boundaries \\
 State of Maryland & Neighborhood boundaries \\
 District of Columbia & Neighborhood centroids \\
@@ -114,7 +114,7 @@ In this section, the network design process is detailed, including data collecti
 \subsection{Data Sources and Transformation}
 The first step is to define the study area. Table~\ref{tab:counties} lists the counties and county-equivalents included, along with their 2020 population, density, and FIPS code~\cite{lit:census}. Figure~\ref{fig:area_considered} shows a map of the included regions.
 % --- Figure: Area Considered ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/area_considered.png}
     \caption{Counties and districts considered as part of the Washington, DC metropolitan area.}
@@ -125,7 +125,7 @@ The first step is to define the study area. Table~\ref{tab:counties} lists the c
 Data for the Washington Metropolitan Area is available from Open Data DC, Open Data MD, and the Virginia Open Data Portal~\cite{lit:opendata}. Census block population data is obtained from the US Census Bureau. Transit potential for each block is calculated as population divided by area. Figure~\ref{fig:city_map} shows the census block boundaries used for population and density analysis.
 
 % --- Figure: Census Block Map ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/city_map.png}
     \caption{Census block map for the Washington, DC area.}
@@ -136,7 +136,7 @@ Data for the Washington Metropolitan Area is available from Open Data DC, Open D
 The census block data is transformed by taking the log of the population density. A recursive spatial tree algorithm identifies the highest-need locations for transit, using a depth of 8. The resulting points represent locations with the highest need for transit based on population. Figure~\ref{fig:point_likelihood} visualizes the transformed census block data used to identify high-need locations for transit.
 
 % --- Figure: Transformed Census Block Data ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/point_likelihood.png}
     \caption{Transformed census block data representing input to the recursive spatial algorithm.}
@@ -151,7 +151,7 @@ Raw data is transformed for network analysis using \texttt{geopandas}, with all 
 A kernel density estimate (KDE) is constructed over the selected points to provide scores for spatial queries at several stages. Figure~\ref{fig:kde_heatmap} displays the KDE heatmap used to model spatial demand for transit.
 
 % --- Figure: KDE Heatmap ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/kde.png}
     \caption{Kernel density estimation (KDE) heatmap of population and transit demand in the Washington, DC region.}
@@ -168,7 +168,7 @@ A Gabriel graph is constructed using the points. The graph is contracted by cond
 With the data fully preprocessed, one of three network construction algorithms is used to determine which line segments from the contracted Gabriel graph become part of the transit network. Figure~\ref{fig:contracted_gabriel} shows the contracted Gabriel graph used as the basis for candidate network construction.
 
 % --- Figure: Contracted Gabriel Graph ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/graph.png}
     \caption{Contracted Gabriel graph representing the search space for network generation.}
@@ -210,7 +210,7 @@ Not all nodes in the contracted Gabriel graph become stations due to varying edg
 Station names are assigned by proximity to neighborhood centroids, using data from Arlington County, Maryland, and the District of Columbia. If multiple stations fall within the same neighborhood, a numeric suffix is added. I was unable to find neighborhood name or boundary data for for other parts of Virginia. Figure~\ref{fig:voronoi} illustrates the Voronoi polygons used to analyze neighborhood coverage and spatial equity.
 
 % --- Figure: Voronoi Polygons ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/voronoi.png}
     \caption{Voronoi polygons constructed around neighborhood centroids in the study area.}
@@ -259,7 +259,7 @@ The Transit Network Viewer application, developed as a part of this project, all
 
 The web application's interface centers around a mapping tool powered by Leaflet. The interactive map displays the networks outputted by each of the three algorithms. Users can use checkboxes below the map to choose to view or hide specific lines, show the real-world transit network for comparison, view the catchment areas for each station, or view the contracted Gabriel graph used to generate the network. Users can hover over the transit lines, colored by group, to see helpful tooltips including their start and end locations, total distance, and number of stations. Users can hover the mouse over stations to see their name, lines served, and score. 
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/itin_1_gen.png}
     \caption{Transit Network Viewer in route finder mode, showing the map interface and selected route.}
@@ -267,7 +267,7 @@ The web application's interface centers around a mapping tool powered by Leaflet
     \Description{A screenshot of the Transit Network Viewer web application in route finder mode, displaying a map with a selected transit route.}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/itin_1_gen_details.png}
     \caption{Transit Network Viewer itinerary details window for the selected route.}
@@ -282,7 +282,7 @@ The most important feature of the Transit Network Viewer is the Route Finder, wh
 I analyze the success of the networks quantitatively using several metrics. First, I determine the critical coverage percentage by calculating the proportion of critical transit points (high-density census blocks, critical services) that fall within the catchment area of any station in the network. The neighborhood coverage percentage is the fraction of neighborhood centroids within the catchment areas of at least one station. I also take the average distance from the nearest station across the entire metropolitan area and for the District of Columbia. Table \ref{tab:networkmetrics} provides the calculated data for the networks I created using each algorithm, and for the real-world WMATA network.
 
 % --- Algorithm Network Figures ---
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/gen.png}
     \caption{Transit network generated by the genetic algorithm.}
@@ -290,7 +290,7 @@ I analyze the success of the networks quantitatively using several metrics. Firs
     \Description{A map visualizing the transit network generated by the genetic algorithm, with lines and stations highlighted.}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/iter.png}
     \caption{Transit network generated by the iterative improvement algorithm.}
@@ -298,7 +298,7 @@ I analyze the success of the networks quantitatively using several metrics. Firs
     \Description{A map visualizing the transit network generated by the iterative improvement algorithm, with lines and stations highlighted.}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[width=0.3\textwidth]{./img/naive.png}
     \caption{Transit network generated by the naive (random walk) algorithm.}
