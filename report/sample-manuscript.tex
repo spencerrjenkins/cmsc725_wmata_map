@@ -24,24 +24,19 @@ This paper presents a computational framework for the design of a reimagined rap
 
 \section{Introduction}
 
-This project was completed for CMSC 725: Geospatial Algorithms and Data, taught by Professor Hanan Samet. 
+This project was completed for CMSC 725: Geospatial Algorithms and Data, taught by Professor Hanan Samet.
 
-Public transportation is a critical component of urban infrastructure, associated with increased economic productivity~\cite{lit:us_transit_policy}, social equity~\cite{lit:equity}, and environmental sustainability~\cite{lit:us_transit_policy} in metropolitan areas. Washington, DC, and its surrounding areas in Maryland and Virginia, comprise the second-largest rapid transit network in the United States by daily ridership~\cite{lit:wmata_stats}. The network consists of six heavy rail lines spanning 208 kilometers and connecting 98 stations, operated by the Washington Metropolitan Area Transit Authority (WMATA)~\cite{lit:wmata_stats}. In 2019, the Washington Metro provided over 160 million trips per year, including work commutes, tourism, and other purposes~\cite{lit:wmata_stats}.
+Public transportation is a vital component of urban infrastructure, contributing to economic productivity~\cite{lit:us_transit_policy}, social equity~\cite{lit:equity}, and environmental sustainability~\cite{lit:us_transit_policy} in metropolitan areas. Washington, DC, and its surrounding areas in Maryland and Virginia, comprise the second-largest rapid transit network in the United States by daily ridership~\cite{lit:wmata_stats}. The network consists of six heavy rail lines spanning 208 kilometers and connecting 98 stations, operated by the Washington Metropolitan Area Transit Authority (WMATA)~\cite{lit:wmata_stats}. In 2019, the Washington Metro provided over 160 million trips per year, including work commutes, tourism, and other purposes~\cite{lit:wmata_stats}.
 
-A primary objective in designing public transit networks in the U.S. is to reduce car dependency~\cite{lit:us_transit_policy}. However, the Washington Metro has struggled to achieve this, with only about 14\% of commuters in the region using transit~\cite{lit:commute_stats}. Comparable metropolitan areas such as Toronto report higher transit commute shares, while many European and Latin American cities also have significantly higher shares~\cite{lit:toronto}. These statistics are typically limited to work commutes, as data for other trip types is less available~\cite{lit:commute_stats}.
+A primary goal in designing public transit networks in the U.S. is to reduce car dependency~\cite{lit:us_transit_policy}. However, the Washington Metro has struggled to achieve this, with only about 14\% of commuters in the region using transit~\cite{lit:commute_stats}. Comparable metropolitan areas such as Toronto report higher transit commute shares, while many European and Latin American cities also have significantly higher shares~\cite{lit:toronto}. These statistics are typically limited to work commutes, as data for other trip types is less available~\cite{lit:commute_stats}.
 
 The limited success of the Washington Metro in attracting ridership is largely attributable to the priorities at the time of its planning~\cite{lit:wmata_history}. Unlike older East Coast cities with legacy rail systems, the Metro was conceived in the 1950s, an era of expanding car infrastructure and urban expressways. The Metro was designed as a compromise, connecting car commuters to the city center, with expansions primarily serving suburban areas~\cite{lit:wmata_history}. As a result, the network remains largely radial and focused on suburban commuters.
 
-This design ethos limits practical use. The network makes suburb-to-suburb and circumferential travel difficult, often requiring passengers to travel into the city center and transfer, even for short cross-town trips~\cite{lit:wmata_stats}. High-density neighborhoods such as Georgetown and marginalized areas like Anacostia have been historically underserved due to political, financial, and social factors~\cite{lit:equity}. Despite significant investment, the Metro has not achieved a substantial reduction in vehicle miles traveled (VMT) or car dependency~\cite{lit:env}. The static nature of the network has also hindered adaptation to shifting population centers and job clusters.
+This design philosophy limits practical use. The network makes suburb-to-suburb and circumferential travel difficult, often requiring passengers to travel into the city center and transfer, even for short cross-town trips~\cite{lit:wmata_stats}. High-density neighborhoods such as Georgetown and marginalized areas like Anacostia have been historically underserved due to political, financial, and social factors~\cite{lit:equity}. Despite significant investment, the Metro has not achieved a substantial reduction in vehicle miles traveled (VMT) or car dependency~\cite{lit:env}. The static nature of the network has also hindered adaptation to shifting population centers and job clusters.
 
-The persistent gaps in the current network's ability to connect high-density and underserved regions further motivate a new approach. For example, the lack of direct connections between major suburban job centers or marginalized neighborhoods limits economic opportunity and social inclusion~\cite{lit:equity}. Existing evaluation frameworks may overlook these gaps, focusing on aggregate metrics that mask disparities in access and service quality. 
+The persistent gaps in the current network's ability to connect high-density and underserved regions further motivate a new approach. For example, the lack of direct connections between major suburban job centers or marginalized neighborhoods limits economic opportunity and social inclusion~\cite{lit:equity}. Existing evaluation frameworks may overlook these gaps, focusing on aggregate metrics that mask disparities in access and service quality.
 
-To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. This project relates to this class through Tons of geographic data manipulation
-Interaction with map-based software
-Tree-inspired algorithm (choose which census blocks)
-Geographic querying (station name choice, filtering input data)
-Route finding (although my algorithm is relatively simple)
-Lots of data structure runtime vs. memory use considerations while writing code (the random walk algorithm stores the forward- and backward pass for easy reference!)
+To address these challenges, this study combines computational and geospatial techniques to generate, evaluate, and visualize alternative transit networks for the Washington, DC region. This project leverages core concepts from CMSC 725, including spatial data structures (such as quadtrees and B-trees), proximity graphs, and efficient spatial querying, to address the challenges of transit network design. The methodology integrates geospatial analysis, graph algorithms, and data-driven optimization to generate and evaluate alternative transit networks for the Washington, DC region. By applying techniques from the course, such as kernel density estimation for spatial demand modeling and the use of Gabriel graphs for candidate network construction, the project demonstrates the power of computational geometry and geospatial algorithms in solving real-world urban problems~\cite{lit:spatial_algorithms}.
 
 
 % --- Table: Counties and FIPS codes ---
@@ -125,8 +120,6 @@ This data is augmented with points for important destinations, as shown in Table
 
 Raw data is transformed for network analysis using \texttt{geopandas}, with all data projected to a common CRS (typically EPSG:3857). Centroids are calculated for each census block and other points, providing candidate locations for potential stations. Unique identifiers and relevant attributes are assigned to each spatial unit. Intermediate results are saved as GeoJSON files for reproducibility and efficient reloading. This preprocessing pipeline, implemented in \texttt{eda.ipynb} and \texttt{funcs.py}, ensures the data is clean, consistent, and ready for network construction.
 
-\subsection{Data Pre-processing}
-
 A kernel density estimate (KDE) is constructed over the selected points to provide scores for spatial queries at several stages. Figure~\ref{fig:kde} shows the KDE map for the area.
 
 A mesh of candidate transit points is generated to balance spatial coverage with computational tractability. Population-based points (census block centroids) are combined with non-population points and deduplicated. The Gabriel graph, constructed using \texttt{libpysal.weights.Gabriel}, connects mutually closest points, resulting in a proximity network suitable for transit planning. The Gabriel graph is converted to a \texttt{networkx} graph for further manipulation, including assignment of edge weights based on Euclidean distance. This mesh serves as the substrate for both random walk and genetic algorithm-based network generation.
@@ -136,12 +129,7 @@ A Gabriel graph is constructed using the points. The graph is contracted by cond
 With the data fully preprocessed, one of three network construction algorithms is used to determine which line segments from the contracted Gabriel graph become part of the transit network.
 
 % --- Figure: Contracted Gabriel Graph ---
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\textwidth]{img/network_map_contracted.png}
-    \caption{Contracted Gabriel graph used as the search space for network generation.}
-    \label{fig:contractedgraph}
-\end{figure}
+Figure~\ref{fig:contractedgraph} shows the contracted Gabriel graph used as the search space for network generation.
 
 \subsection{Network Creation: Naive (Random Walk) Algorithm}
 
