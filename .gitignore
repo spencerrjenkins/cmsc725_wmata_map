@@ -7,9 +7,12 @@ data/*.csv
 data/real_transit/old/*
 venv/*
 .ipynb_checkpoints/*
-__pycache__/api.cpython-311.pyc
+__pycache__/*
 *.pyc
 *.tar.gz
 .vscode/*
 *.pkl
 /*.png
+*.DS_Store
+data/ca/*
+data/real_transit/ca/*

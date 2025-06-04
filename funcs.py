@@ -287,14 +287,15 @@ def reduce_degree(graph, pos, max_degree=4, angle_threshold=10):
     return graph
 
 
-def remove_isolated_nodes(graph):
+def remove_isolated_nodes(graph, positions):
     # Find all isolated nodes (degree 0)
     isolated_nodes = [node for node in graph.nodes() if graph.degree(node) == 0]
-
     # Remove isolated nodes from the graph
     graph.remove_nodes_from(isolated_nodes)
-
-    return graph
+    new_positions = {}
+    for node in graph.nodes():
+        new_positions[node] = positions[node]
+    return graph, new_positions
 
 
 def haversine(pt1, pt2):
@@ -385,6 +386,7 @@ def perform_walks(
     min_angle=130,
     total_turn_high=80,
     total_turn_reset=30,
+    max_count=3,
 ):
     def get_straightest_edge(node, prev_node, visited, sign, recursion_depth=0):
         neighbors = [
@@ -434,7 +436,7 @@ def perform_walks(
         return candidates[argmax]
 
     walks = []
-    three_count = defaultdict(lambda: 0)
+    count_collector = defaultdict(lambda: 0)
     i = 0
     timeout = 500
     while i < num_walks and timeout > 0:
@@ -490,8 +492,8 @@ def perform_walks(
         if current_distance > min_distance:
             walks.append(walk)
             for j in curr_traversed_edges:
-                three_count[j] += 1
-                if three_count[j] >= 3:
+                count_collector[j] += 1
+                if count_collector[j] >= max_count:
                     traversed_edges.add(j)
                     complete_traversed_edges[i].add(j)
             # traversed_edges = set.union(traversed_edges, curr_traversed_edges)
